@@ -1,0 +1,12 @@
+{
+  "name": "@distritos/protocol",
+  "version": "0.1.0",
+  "description": "Sobres de mensajes cliente-servidor y esquemas de órdenes, intenciones y eventos",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@distritos/sim",
+  "version": "0.1.0",
+  "description": "Simulación determinista compartida por cliente y servidor",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0"
+  }
+}

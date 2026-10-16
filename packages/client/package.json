@@ -1,0 +1,10 @@
+{
+  "name": "@distritos/client",
+  "version": "0.1.0",
+  "description": "Cliente web: Vite + PixiJS",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

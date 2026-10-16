@@ -1,0 +1,10 @@
+{
+  "name": "@distritos/server",
+  "version": "0.1.0",
+  "description": "Servidor Node (F2 en adelante)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

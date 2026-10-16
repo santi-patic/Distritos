@@ -1,0 +1,12 @@
+{
+  "name": "@distritos/content",
+  "version": "0.1.0",
+  "description": "Tablas de contenido validadas por esquema y su compilador",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
