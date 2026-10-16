@@ -38,3 +38,23 @@ export function isEmpty(record: Readonly<Record<string, unknown>>): boolean {
 export function size(record: Readonly<Record<string, unknown>>): number {
   return sortedKeys(record).length;
 }
+
+/** Borra una clave de un registro. Único sitio con `delete` dinámico. */
+export function removeKey(record: Record<string, unknown>, key: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+  delete record[key];
+}
+
+/** Valor de un registro que tiene que existir; lanza con un mensaje claro si no. */
+export function get<V>(record: Readonly<Record<string, V>>, key: string, what = 'clave'): V {
+  const v = record[key];
+  if (v === undefined) throw new Error(`${what} no encontrada: ${key}`);
+  return v;
+}
+
+/** Elemento de una lista que tiene que existir. */
+export function at<T>(list: readonly T[], index: number, what = 'índice'): T {
+  const v = list[index];
+  if (v === undefined) throw new Error(`${what} fuera de rango: ${index}`);
+  return v;
+}

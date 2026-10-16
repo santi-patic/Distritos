@@ -1,0 +1,187 @@
+{
+  "name": "f0-basic",
+  "description": "Un terreno, un obrero: viajes, redirección, apertura de sectores, rechazos y órdenes del sistema.",
+  "params": {
+    "kind": "district",
+    "template": "f0_solo",
+    "seed": "0123456789abcdef",
+    "actors": [
+      {
+        "id": "santi",
+        "plot": "p1"
+      }
+    ]
+  },
+  "orders": [
+    {
+      "seq": 1,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e2"
+      }
+    },
+    {
+      "seq": 2,
+      "tick": 3,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e3"
+      }
+    },
+    {
+      "seq": 3,
+      "tick": 3,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m9",
+        "to": "e3"
+      }
+    },
+    {
+      "seq": 4,
+      "tick": 30,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "1,0"
+      }
+    },
+    {
+      "seq": 5,
+      "tick": 31,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "0,1"
+      }
+    },
+    {
+      "seq": 6,
+      "tick": 200,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "3,0"
+      }
+    },
+    {
+      "seq": 7,
+      "tick": 200,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "2,0"
+      }
+    },
+    {
+      "seq": 8,
+      "tick": 400,
+      "actor": "sys",
+      "kind": "credit",
+      "args": {
+        "actor": "santi",
+        "resource": "eagles",
+        "amount": 25,
+        "ref": "libro:1"
+      }
+    },
+    {
+      "seq": 9,
+      "tick": 400,
+      "actor": "sys",
+      "kind": "debit",
+      "args": {
+        "actor": "santi",
+        "resource": "eagles",
+        "amount": 40,
+        "ref": "libro:2"
+      }
+    },
+    {
+      "seq": 10,
+      "tick": 401,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "0,-1"
+      }
+    },
+    {
+      "seq": 11,
+      "tick": 900,
+      "actor": "sys",
+      "kind": "skip",
+      "args": {
+        "ticks": 5000
+      }
+    },
+    {
+      "seq": 12,
+      "tick": 2000,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e1"
+      }
+    },
+    {
+      "seq": 13,
+      "tick": 6000,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e1"
+      }
+    },
+    {
+      "seq": 14,
+      "tick": 6100,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "-1,0"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "tick": 1,
+      "hash": "a93a78301520e28a20e715e0749b61df8985aee2ece2afb52c95de8f2ff9c809",
+      "view": "70434f53b2300c853bc78824b93d2b3715209b0461284bb317808943a0e38208"
+    },
+    {
+      "tick": 50,
+      "hash": "56857dd8e85150864c533ba57adddcab03ec2564a86bfac32ef90f07ed6e0cb4",
+      "view": "e1e0e3ebb7835b2a375c738d8bf9b911f7447d28cfdf89ceefd2566bae5a9be7"
+    },
+    {
+      "tick": 300,
+      "hash": "6d3c58235a3c7303262c8670baada9ed9c289ee4e764350aa38cbfdb29bd66ad",
+      "view": "ffc52a15f662571e7c6ff5c6f3036263eb7174c6bf7bf623e42379ec4a9ec195"
+    },
+    {
+      "tick": 500,
+      "hash": "b3a0cbd63edcfe05d3353fe6ba1cf8821259e2ca54c4b16dd216272f6bfb2efd",
+      "view": "c6cd562f84076a040b48a300b25a79fb3f8f98f4a901f02681805899ac2932d4"
+    },
+    {
+      "tick": 6500,
+      "hash": "c98e37e8f8b72c5eb15641af4cdd55bad0dc023762446f78b8422b7468788713",
+      "view": "7c85f2ce08986e291d46cdec2c47185b9f59651d808745e4c6c09ba5935e40ff"
+    }
+  ]
+}
