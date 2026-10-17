@@ -5,7 +5,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { light, nextDailyTick, nextLightChange, nextWorkStart, workEnd } from '../src/calendar.js';
+import {
+  isDailyTick,
+  light,
+  nextDailyTick,
+  nextLightChange,
+  nextWorkStart,
+  workEnd,
+} from '../src/calendar.js';
 import { hashState } from '../src/index.js';
 import { removeKey } from '../src/iter.js';
 import { addElement, capacityOf } from '../src/rules/elements.js';
@@ -90,6 +97,10 @@ describe('calendario de F1', () => {
     expect(nextDailyTick(s, content, 0)).toBe(1200);
     expect(nextDailyTick(s, content, 1200)).toBe(1200);
     expect(nextDailyTick(s, content, 1201)).toBe(7200);
+    // Creada justo a la hora del paso diario, el primer paso es al día siguiente.
+    const atDaily = createScene({ ...params, dayOffset: 1200 }, content);
+    expect(isDailyTick(atDaily, content, 0)).toBe(false);
+    expect(nextDailyTick(atDaily, content, 0)).toBe(6000);
   });
 });
 

@@ -1,6 +1,7 @@
 /**
  * Compilador de tablas: valida contra los esquemas JSON, comprueba referencias cruzadas,
- * convierte unidades (segundos → ticks, hexágono → retícula entera) y calcula el hash.
+ * convierte unidades (segundos → ticks, tasas → unidades por día, hexágono → retícula entera)
+ * y calcula el hash.
  *
  * El resultado es el `CompiledContent` que consume el sim. El hash es el sha-256 del JSON
  * canónico del contenido compilado: cambia si cambia una tabla o una conversión.
@@ -11,16 +12,28 @@ import {
   hashOf,
   NOTHING,
   type Archetype,
+  type BoardTable,
+  type BuildKind,
   type CompiledContent,
+  type ElementKind,
+  type HireKind,
+  type LinkKind,
+  type MobileKind,
+  type ResourceKind,
   type SceneKind,
   type SceneTable,
+  type TaskKind,
   type Template,
+  type WorkSpec,
 } from '@distritos/sim';
-import type { RawScene, RawTables, TableName } from './raw.js';
+import type { RatePeriod, RawRate, RawScene, RawTables, RawWork, TableName } from './raw.js';
 import { TABLE_NAMES } from './raw.js';
 import { schemas } from './schemas.js';
 
 const SCENE_KINDS: readonly SceneKind[] = ['district', 'incursion', 'charge', 'dispute'];
+
+/** Cuántas veces cabe cada periodo de tasa en un día de 24 h. */
+const PER_DAY: Record<RatePeriod, number> = { s: 86_400, h: 24, dia: 1 };
 
 export class ContentError extends Error {
   constructor(
@@ -73,12 +86,21 @@ function secondsToTicks(seconds: number, tickMs: number, what: string): number {
   return exactDiv(seconds * 1000, tickMs, what);
 }
 
+/** Tasa en unidades por día de 24 h. */
+function perDay(rate: RawRate): number {
+  return rate.amount * PER_DAY[rate.per];
+}
+
+function copyAmounts(a: Record<string, number> | undefined): Record<string, number> | undefined {
+  return a === undefined ? undefined : { ...a };
+}
+
 function compileScene(kind: SceneKind, raw: RawScene): SceneTable {
   const { tickMs } = raw;
   const dayTicks = secondsToTicks(raw.daySeconds, tickMs, `scenes.${kind}.daySeconds`);
   const light = raw.light.map(([s, l], i): [number, number] => {
     const t = secondsToTicks(s, tickMs, `scenes.${kind}.light[${i}]`);
-    if (t > dayTicks) throw new ContentError(`scenes.${kind}.light[${i}]: ${s} s se sale del ciclo`);
+    if (t >= dayTicks) throw new ContentError(`scenes.${kind}.light[${i}]: ${s} s se sale del ciclo`);
     return [t, l];
   });
   for (let i = 1; i < light.length; i++) {
@@ -92,7 +114,7 @@ function compileScene(kind: SceneKind, raw: RawScene): SceneTable {
   // resultado queda fijado por el hash del contenido.
   const hexW = 2 * Math.round((raw.hexSizeMm * Math.sqrt(3)) / 2);
   const hexH = Math.round((raw.hexSizeMm * 3) / 2);
-  return {
+  const out: SceneTable = {
     tickMs,
     dayTicks,
     light,
@@ -101,11 +123,57 @@ function compileScene(kind: SceneKind, raw: RawScene): SceneTable {
     hexH,
     maxCatchupTicks: raw.maxCatchupDays * dayTicks,
   };
+  if (raw.workLight !== undefined) out.workLight = raw.workLight;
+  if (raw.dailyAt !== undefined) {
+    if (raw.dailyAt >= raw.daySeconds) throw new ContentError(`scenes.${kind}.dailyAt: se sale del día`);
+    out.dailyAt = secondsToTicks(raw.dailyAt, tickMs, `scenes.${kind}.dailyAt`);
+  }
+  return out;
+}
+
+function compileWork(raw: RawWork, tickMs: number, what: string): WorkSpec {
+  const out: WorkSpec = { ticks: secondsToTicks(raw.seconds, tickMs, `${what}.seconds`) };
+  if (raw.firstSeconds !== undefined)
+    out.firstTicks = secondsToTicks(raw.firstSeconds, tickMs, `${what}.firstSeconds`);
+  if (raw.cost !== undefined) out.cost = { ...raw.cost };
+  return out;
+}
+
+function compileElement(id: string, raw: RawTables['elements'][string]): ElementKind {
+  const out: ElementKind = { category: raw.category };
+  if (raw.stores !== undefined) out.stores = { ...raw.stores };
+  if (raw.inventory !== undefined) out.inventory = raw.inventory;
+  if (raw.produce !== undefined) {
+    const p = raw.produce;
+    let rate = perDay(p);
+    if (p.yieldPermille !== undefined) rate = Math.floor((rate * p.yieldPermille) / 1000);
+    if (!Number.isSafeInteger(rate)) throw new ContentError(`elements.${id}.produce: tasa fuera de rango`);
+    out.produce = { resource: p.resource, perDay: rate, to: p.to };
+    if (p.light !== undefined) out.produce.light = p.light;
+    if (p.wear !== undefined) out.produce.wear = p.wear;
+  }
+  if (raw.consume !== undefined)
+    out.consume = { resource: raw.consume.resource, perDay: perDay(raw.consume) };
+  if (raw.switchable !== undefined) out.switchable = raw.switchable;
+  if (raw.beds !== undefined) out.beds = raw.beds;
+  if (raw.soil !== undefined) out.soil = { perDay: raw.soil.perDay, max: raw.soil.max };
+  if (raw.cycles !== undefined) out.cycles = { lossPermille: raw.cycles.lossPermille };
+  return out;
 }
 
 function checkReferences(tables: RawTables, errors: string[]): void {
-  const has = (table: Exclude<TableName, 'scenes' | 'actions'>, id: string): boolean =>
-    tables[table][id] !== undefined;
+  const has = (table: Exclude<TableName, 'scenes' | 'actions' | 'board'>, id: string): boolean =>
+    (tables[table] as Record<string, unknown>)[id] !== undefined;
+  const resource = (where: string, r: string): void => {
+    if (!has('resources', r)) errors.push(`${where}: recurso desconocido ${r}`);
+  };
+  const element = (where: string, k: string): void => {
+    if (!has('elements', k)) errors.push(`${where}: elemento desconocido ${k}`);
+  };
+  const amounts = (where: string, a: Record<string, number> | undefined): void => {
+    for (const r of Object.keys(a ?? {})) resource(where, r);
+  };
+
   for (const [id, a] of entriesOf(tables.archetypes)) {
     for (const t of a.terrains) {
       if (!has('terrains', t.kind)) errors.push(`archetypes.${id}.terrains: terreno desconocido ${t.kind}`);
@@ -119,13 +187,28 @@ function checkReferences(tables: RawTables, errors: string[]): void {
       }
     }
     if (!has('terrains', a.start.terrain)) errors.push(`archetypes.${id}.start.terrain: terreno desconocido`);
-    for (const e of a.start.elements) {
-      if (!has('elements', e.kind))
-        errors.push(`archetypes.${id}.start.elements: elemento desconocido ${e.kind}`);
-    }
+    a.start.elements.forEach((e, i) => {
+      element(`archetypes.${id}.start.elements[${i}]`, e.kind);
+      for (const r of Object.keys(e.store ?? {})) {
+        if (tables.elements[e.kind]?.stores?.[r] === undefined) {
+          errors.push(`archetypes.${id}.start.elements[${i}]: ${e.kind} no almacena ${r}`);
+        }
+      }
+      if (e.on !== undefined && tables.elements[e.kind]?.switchable !== true) {
+        errors.push(`archetypes.${id}.start.elements[${i}]: ${e.kind} no se enciende`);
+      }
+    });
     for (const m of a.start.mobiles) {
       if (!has('mobiles', m.kind)) errors.push(`archetypes.${id}.start.mobiles: móvil desconocido ${m.kind}`);
     }
+    amounts(`archetypes.${id}.start.stocks`, a.start.stocks);
+    (a.start.links ?? []).forEach((l, i) => {
+      if (!has('links', l.kind))
+        errors.push(`archetypes.${id}.start.links[${i}]: nexo desconocido ${l.kind}`);
+      const n = a.start.elements.length;
+      if (l.a >= n || l.b >= n || l.a === l.b)
+        errors.push(`archetypes.${id}.start.links[${i}]: índices fuera de la dotación`);
+    });
   }
   for (const [id, t] of entriesOf(tables.templates)) {
     const ids = new Set<string>();
@@ -135,10 +218,68 @@ function checkReferences(tables: RawTables, errors: string[]): void {
       if (!has('archetypes', p.archetype))
         errors.push(`templates.${id}.${p.id}: arquetipo desconocido ${p.archetype}`);
     }
-    if (t.common !== null && !has('archetypes', t.common.archetype)) {
-      errors.push(`templates.${id}.common: arquetipo desconocido ${t.common.archetype}`);
+    if (t.common !== null) {
+      if (!has('archetypes', t.common.archetype)) {
+        errors.push(`templates.${id}.common: arquetipo desconocido ${t.common.archetype}`);
+      }
+      for (const e of t.common.elements ?? []) {
+        element(`templates.${id}.common.elements`, e.kind);
+        if (!t.common.sectors.some((h) => h.q === e.hex.q && h.r === e.hex.r)) {
+          errors.push(`templates.${id}.common.elements: ${e.kind} no está en un sector común`);
+        }
+      }
     }
   }
+  for (const [id, e] of entriesOf(tables.elements)) {
+    amounts(`elements.${id}.stores`, e.stores);
+    if (e.produce !== undefined) resource(`elements.${id}.produce`, e.produce.resource);
+    if (e.consume !== undefined) resource(`elements.${id}.consume`, e.consume.resource);
+    if (e.produce?.to === 'self' && e.stores?.[e.produce.resource] === undefined) {
+      errors.push(`elements.${id}.produce: produce para sí pero no almacena ${e.produce.resource}`);
+    }
+    const p = e.produce === undefined ? undefined : tables.resources[e.produce.resource];
+    const c = e.consume === undefined ? undefined : tables.resources[e.consume.resource];
+    if (p !== undefined && c !== undefined && c.order >= p.order) {
+      errors.push(
+        `elements.${id}: gasta ${e.consume?.resource} para producir ${e.produce?.resource}; tiene que ir antes en resources`,
+      );
+    }
+  }
+  for (const [id, m] of entriesOf(tables.mobiles)) {
+    if (m.eats !== undefined) resource(`mobiles.${id}.eats`, m.eats.resource);
+  }
+  resource('actions.reveal', tables.actions.reveal.resource);
+  for (const [id, t] of entriesOf(tables.tasks)) {
+    for (const k of t.at) element(`tasks.${id}.at`, k);
+    amounts(`tasks.${id}.cost`, t.cost);
+    amounts(`tasks.${id}.gives`, t.gives);
+    if (t.collect !== undefined) resource(`tasks.${id}.collect`, t.collect);
+    if (t.gives !== undefined && t.into === undefined) errors.push(`tasks.${id}: gives sin into`);
+    if (t.tool !== undefined) {
+      element(`tasks.${id}.tool`, t.tool.kind);
+      amounts(`tasks.${id}.tool.cost`, t.tool.cost);
+    }
+  }
+  for (const [id, b] of entriesOf(tables.builds)) {
+    element(`builds.${id}`, id);
+    amounts(`builds.${id}.cost`, b.cost);
+    for (const k of b.near?.kinds ?? []) element(`builds.${id}.near`, k);
+  }
+  for (const [id, l] of entriesOf(tables.links)) {
+    if (l.carries !== undefined) resource(`links.${id}.carries`, l.carries);
+    amounts(`links.${id}.cost`, l.cost);
+    amounts(`links.${id}.costPerUnit`, l.costPerUnit);
+  }
+  for (const [id, h] of entriesOf(tables.hires)) {
+    if (!has('mobiles', id)) errors.push(`hires.${id}: móvil desconocido`);
+    amounts(`hires.${id}.cost`, h.cost);
+  }
+  resource('board.currency', tables.board.currency);
+  tables.board.encargos.forEach((e, i) => {
+    element(`board.encargos[${i}].at`, e.at);
+    if (e.work !== true) resource(`board.encargos[${i}]`, e.resource);
+    if (e.perTrip > e.amount) errors.push(`board.encargos[${i}]: perTrip mayor que amount`);
+  });
 }
 
 /** Valida, convierte y hashea. Lanza `ContentError` con todos los problemas encontrados. */
@@ -159,23 +300,43 @@ export function compile(tables: RawTables): CompiledContent {
 
   const archetypes: Record<string, Archetype> = {};
   for (const [id, a] of entriesOf(tables.archetypes)) {
+    const start: Archetype['start'] = {
+      terrain: a.start.terrain,
+      elements: a.start.elements.map((e) => {
+        const out: Archetype['start']['elements'][number] = { kind: e.kind, dx: e.dx, dy: e.dy };
+        if (e.store !== undefined) out.store = { ...e.store };
+        if (e.on !== undefined) out.on = e.on;
+        return out;
+      }),
+      mobiles: a.start.mobiles.map((m) => ({ kind: m.kind })),
+      stocks: { ...a.start.stocks },
+    };
+    if (a.start.links !== undefined)
+      start.links = a.start.links.map((l) => ({ kind: l.kind, a: l.a, b: l.b }));
     archetypes[id] = {
       tier: a.tier,
       terrains: a.terrains.map((w) => ({ kind: w.kind, weight: w.weight })),
       finds: Object.fromEntries(
         Object.entries(a.finds).map(([t, ws]) => [t, ws.map((w) => ({ kind: w.kind, weight: w.weight }))]),
       ),
-      start: {
-        terrain: a.start.terrain,
-        elements: a.start.elements.map((e) => ({ kind: e.kind, dx: e.dx, dy: e.dy })),
-        mobiles: a.start.mobiles.map((m) => ({ kind: m.kind })),
-        stocks: { ...a.start.stocks },
-      },
+      start,
     };
   }
 
   const templates: Record<string, Template> = {};
   for (const [id, t] of entriesOf(tables.templates)) {
+    let common: Template['common'] = null;
+    if (t.common !== null) {
+      common = { archetype: t.common.archetype, sectors: t.common.sectors.map((h) => ({ q: h.q, r: h.r })) };
+      if (t.common.elements !== undefined) {
+        common.elements = t.common.elements.map((e) => ({
+          kind: e.kind,
+          hex: { q: e.hex.q, r: e.hex.r },
+          dx: e.dx,
+          dy: e.dy,
+        }));
+      }
+    }
     templates[id] = {
       kind: t.kind,
       plots: t.plots.map((p) => ({
@@ -184,40 +345,116 @@ export function compile(tables: RawTables): CompiledContent {
         anchor: { q: p.anchor.q, r: p.anchor.r },
         radius: p.radius,
       })),
-      common:
-        t.common === null
-          ? null
-          : { archetype: t.common.archetype, sectors: t.common.sectors.map((h) => ({ q: h.q, r: h.r })) },
+      common,
     };
   }
+
+  const mobiles: Record<string, MobileKind> = {};
+  for (const [k, m] of entriesOf(tables.mobiles)) {
+    const out: MobileKind = {
+      stats: {
+        force: m.stats.force,
+        vision: m.stats.vision,
+        alert: m.stats.alert,
+        speed: m.stats.speedMmPerS,
+      },
+      names: [...m.names],
+    };
+    if (m.eats !== undefined) out.eats = { resource: m.eats.resource, perDay: m.eats.perDay };
+    if (m.hungryPermille !== undefined) out.hungryPermille = m.hungryPermille;
+    mobiles[k] = out;
+  }
+
+  const reveal: CompiledContent['actions']['reveal'] = {
+    resource: tables.actions.reveal.resource,
+    cost: tables.actions.reveal.costJ,
+    ticks: secondsToTicks(tables.actions.reveal.seconds, tickMs, 'actions.reveal.seconds'),
+  };
+  if (tables.actions.reveal.firstSeconds !== undefined) {
+    reveal.firstTicks = secondsToTicks(
+      tables.actions.reveal.firstSeconds,
+      tickMs,
+      'actions.reveal.firstSeconds',
+    );
+  }
+
+  const resources: Record<string, ResourceKind> = {};
+  for (const [k, r] of entriesOf(tables.resources)) resources[k] = { physical: r.physical, order: r.order };
+
+  const tasks: Record<string, TaskKind> = {};
+  for (const [k, t] of entriesOf(tables.tasks)) {
+    const out: TaskKind = { at: [...t.at], ...compileWork(t, tickMs, `tasks.${k}`) };
+    if (t.gives !== undefined) out.gives = { ...t.gives };
+    if (t.into !== undefined) out.into = t.into;
+    if (t.collect !== undefined) out.collect = t.collect;
+    if (t.clean !== undefined) out.clean = t.clean;
+    if (t.tool !== undefined)
+      out.tool = { kind: t.tool.kind, ...compileWork(t.tool, tickMs, `tasks.${k}.tool`) };
+    tasks[k] = out;
+  }
+
+  const builds: Record<string, BuildKind> = {};
+  for (const [k, b] of entriesOf(tables.builds)) {
+    const work = compileWork(b, tickMs, `builds.${k}`);
+    const out: BuildKind = { ...work, cost: { ...b.cost }, gapMm: b.gapMm };
+    if (b.near !== undefined) out.near = { kinds: [...b.near.kinds], hexes: b.near.hexes };
+    builds[k] = out;
+  }
+
+  const links: Record<string, LinkKind> = {};
+  for (const [k, l] of entriesOf(tables.links)) {
+    const out: LinkKind = {
+      unitMm: l.unitMm,
+      ticksPerUnit: secondsToTicks(l.secondsPerUnit, tickMs, `links.${k}.secondsPerUnit`),
+    };
+    if (l.carries !== undefined) out.carries = l.carries;
+    if (l.speedPermille !== undefined) out.speedPermille = l.speedPermille;
+    if (l.firstSeconds !== undefined)
+      out.firstTicks = secondsToTicks(l.firstSeconds, tickMs, `links.${k}.firstSeconds`);
+    const cost = copyAmounts(l.cost);
+    if (cost !== undefined) out.cost = cost;
+    const costPerUnit = copyAmounts(l.costPerUnit);
+    if (costPerUnit !== undefined) out.costPerUnit = costPerUnit;
+    if (l.maxMm !== undefined) out.maxMm = l.maxMm;
+    links[k] = out;
+  }
+
+  const hires: Record<string, HireKind> = {};
+  for (const [k, h] of entriesOf(tables.hires)) hires[k] = { cost: { ...h.cost } };
+
+  const board: BoardTable = {
+    currency: tables.board.currency,
+    encargos: tables.board.encargos.map((e, i) => {
+      const work = e.work === true;
+      const units = (n: number, what: string): number =>
+        work ? secondsToTicks(n, tickMs, `board.encargos[${i}].${what}`) : n;
+      const out: BoardTable['encargos'][number] = {
+        id: e.id,
+        at: e.at,
+        resource: e.resource,
+        amount: units(e.amount, 'amount'),
+        perTrip: units(e.perTrip, 'perTrip'),
+        reward: e.reward,
+      };
+      if (work) out.work = true;
+      return out;
+    }),
+  };
 
   const compiled: Omit<CompiledContent, 'hash'> = {
     scenes,
     archetypes,
     templates,
-    elements: Object.fromEntries(entriesOf(tables.elements).map(([k, e]) => [k, { category: e.category }])),
-    mobiles: Object.fromEntries(
-      entriesOf(tables.mobiles).map(([k, m]) => [
-        k,
-        {
-          stats: {
-            force: m.stats.force,
-            vision: m.stats.vision,
-            alert: m.stats.alert,
-            speed: m.stats.speedMmPerS,
-          },
-          names: [...m.names],
-        },
-      ]),
-    ),
+    elements: Object.fromEntries(entriesOf(tables.elements).map(([k, e]) => [k, compileElement(k, e)])),
+    mobiles,
     terrains: Object.fromEntries(entriesOf(tables.terrains).map(([k, t]) => [k, { category: t.category }])),
-    actions: {
-      reveal: {
-        resource: tables.actions.reveal.resource,
-        cost: tables.actions.reveal.costJ,
-        ticks: secondsToTicks(tables.actions.reveal.seconds, tickMs, 'actions.reveal.seconds'),
-      },
-    },
+    actions: { reveal },
+    resources,
+    tasks,
+    builds,
+    links,
+    hires,
+    board,
   };
   return { hash: hashOf(compiled), ...compiled };
 }

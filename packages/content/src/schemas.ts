@@ -8,6 +8,12 @@ import elements from '../schemas/elements.schema.json' with { type: 'json' };
 import mobiles from '../schemas/mobiles.schema.json' with { type: 'json' };
 import terrains from '../schemas/terrains.schema.json' with { type: 'json' };
 import actions from '../schemas/actions.schema.json' with { type: 'json' };
+import resources from '../schemas/resources.schema.json' with { type: 'json' };
+import tasks from '../schemas/tasks.schema.json' with { type: 'json' };
+import builds from '../schemas/builds.schema.json' with { type: 'json' };
+import links from '../schemas/links.schema.json' with { type: 'json' };
+import hires from '../schemas/hires.schema.json' with { type: 'json' };
+import board from '../schemas/board.schema.json' with { type: 'json' };
 
 export const schemas = {
   common,
@@ -18,4 +24,10 @@ export const schemas = {
   mobiles,
   terrains,
   actions,
+  resources,
+  tasks,
+  builds,
+  links,
+  hires,
+  board,
 } as const;

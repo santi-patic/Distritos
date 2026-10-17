@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/resources.schema.json",
+  "title": "Recursos",
+  "description": "Físicos (viven en los almacenes de los elementos) o de libro (en el actor). El orden decide la resolución de flujos: un recurso va antes que los que se producen gastándolo.",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["physical", "order"],
+    "properties": {
+      "physical": {
+        "type": "boolean"
+      },
+      "order": {
+        "$ref": "common.schema.json#/definitions/nonNegInt"
+      }
+    }
+  }
+}

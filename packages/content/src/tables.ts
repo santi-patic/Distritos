@@ -8,6 +8,12 @@ import elements from '../tables/elements.json' with { type: 'json' };
 import mobiles from '../tables/mobiles.json' with { type: 'json' };
 import terrains from '../tables/terrains.json' with { type: 'json' };
 import actions from '../tables/actions.json' with { type: 'json' };
+import resources from '../tables/resources.json' with { type: 'json' };
+import tasks from '../tables/tasks.json' with { type: 'json' };
+import builds from '../tables/builds.json' with { type: 'json' };
+import links from '../tables/links.json' with { type: 'json' };
+import hires from '../tables/hires.json' with { type: 'json' };
+import board from '../tables/board.json' with { type: 'json' };
 
 export const tables: RawTables = {
   scenes: scenes as RawTables['scenes'],
@@ -17,4 +23,10 @@ export const tables: RawTables = {
   mobiles: mobiles,
   terrains: terrains as RawTables['terrains'],
   actions: actions,
+  resources: resources,
+  tasks: tasks as RawTables['tasks'],
+  builds: builds,
+  links: links,
+  hires: hires,
+  board: board,
 };

@@ -3,7 +3,9 @@
   "$id": "https://distritos.local/schemas/mobiles.schema.json",
   "title": "Móviles",
   "type": "object",
-  "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
   "additionalProperties": {
     "type": "object",
     "additionalProperties": false,
@@ -14,13 +16,48 @@
         "additionalProperties": false,
         "required": ["force", "vision", "alert", "speedMmPerS"],
         "properties": {
-          "force": { "type": "integer", "minimum": 0 },
-          "vision": { "type": "integer", "minimum": 0 },
-          "alert": { "type": "integer", "minimum": 0 },
-          "speedMmPerS": { "type": "integer", "minimum": 1 }
+          "force": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "vision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alert": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "speedMmPerS": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       },
-      "names": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      "names": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "eats": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resource", "perDay"],
+        "properties": {
+          "resource": {
+            "$ref": "common.schema.json#/definitions/kindId"
+          },
+          "perDay": {
+            "$ref": "common.schema.json#/definitions/nonNegInt"
+          }
+        }
+      },
+      "hungryPermille": {
+        "$ref": "common.schema.json#/definitions/permille",
+        "description": "Rendimiento en las tareas cuando no ha comido."
+      }
     }
   }
 }

@@ -11,9 +11,21 @@
       "additionalProperties": false,
       "required": ["resource", "costJ", "seconds"],
       "properties": {
-        "resource": { "$ref": "common.schema.json#/definitions/kindId" },
-        "costJ": { "type": "integer", "minimum": 0 },
-        "seconds": { "type": "integer", "minimum": 0 }
+        "resource": {
+          "$ref": "common.schema.json#/definitions/kindId"
+        },
+        "costJ": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstSeconds": {
+          "$ref": "common.schema.json#/definitions/seconds",
+          "description": "La primera vez del jugador (entrada fácil)."
+        }
       }
     }
   }

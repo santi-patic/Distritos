@@ -1,0 +1,26 @@
+{
+  "energia": {
+    "physical": true,
+    "order": 1
+  },
+  "agua": {
+    "physical": true,
+    "order": 2
+  },
+  "comida": {
+    "physical": true,
+    "order": 3
+  },
+  "madera": {
+    "physical": true,
+    "order": 4
+  },
+  "piedra": {
+    "physical": true,
+    "order": 5
+  },
+  "eagles": {
+    "physical": false,
+    "order": 10
+  }
+}

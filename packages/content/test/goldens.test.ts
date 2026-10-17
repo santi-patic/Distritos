@@ -24,11 +24,11 @@ interface Fixture {
   checkpoints: Checkpoint[];
 }
 
-const FILE = join(import.meta.dirname, 'fixtures', 'f0-real.json');
+const FILE = join(import.meta.dirname, 'fixtures', 'f1-real.json');
 const UPDATE = process.env.UPDATE_GOLDENS === '1';
 
 describe('fixture dorado con las tablas reales', () => {
-  it('f0-real: advance y replay coinciden con los dorados', () => {
+  it('f1-real: advance y replay coinciden con los dorados', () => {
     const fixture = JSON.parse(readFileSync(FILE, 'utf8')) as Fixture;
     const c = content();
     const actor = fixture.params.actors[0]?.id ?? 'sys';

@@ -13,5 +13,56 @@
       }
     ],
     "common": null
+  },
+  "f1_casa": {
+    "kind": "district",
+    "plots": [
+      {
+        "id": "p1",
+        "archetype": "finca_prado",
+        "anchor": {
+          "q": 0,
+          "r": 0
+        },
+        "radius": 3
+      }
+    ],
+    "common": {
+      "archetype": "comun",
+      "sectors": [
+        {
+          "q": 4,
+          "r": -1
+        },
+        {
+          "q": 4,
+          "r": 0
+        },
+        {
+          "q": 3,
+          "r": 1
+        }
+      ],
+      "elements": [
+        {
+          "kind": "punto_carga",
+          "hex": {
+            "q": 4,
+            "r": -1
+          },
+          "dx": -12000,
+          "dy": 0
+        },
+        {
+          "kind": "almacen_comun",
+          "hex": {
+            "q": 4,
+            "r": -1
+          },
+          "dx": 12000,
+          "dy": 0
+        }
+      ]
+    }
   }
 }

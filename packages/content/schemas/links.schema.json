@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/links.schema.json",
+  "title": "Nexos",
+  "description": "Cables, canales y caminos. Duración y coste por tramo de unitMm (o fracción).",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["unitMm", "secondsPerUnit"],
+    "properties": {
+      "carries": {
+        "$ref": "common.schema.json#/definitions/kindId",
+        "description": "Recurso que lleva; sin él, es un camino."
+      },
+      "speedPermille": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100000,
+        "description": "Velocidad de los obreros entre sus extremos, en milésimas de la propia."
+      },
+      "unitMm": {
+        "$ref": "common.schema.json#/definitions/posInt"
+      },
+      "secondsPerUnit": {
+        "$ref": "common.schema.json#/definitions/seconds"
+      },
+      "firstSeconds": {
+        "$ref": "common.schema.json#/definitions/seconds"
+      },
+      "cost": {
+        "$ref": "common.schema.json#/definitions/amounts"
+      },
+      "costPerUnit": {
+        "$ref": "common.schema.json#/definitions/amounts"
+      },
+      "maxMm": {
+        "$ref": "common.schema.json#/definitions/posInt"
+      }
+    }
+  }
+}

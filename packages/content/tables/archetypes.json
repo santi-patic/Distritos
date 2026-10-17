@@ -67,7 +67,10 @@
         {
           "kind": "casa",
           "dx": 0,
-          "dy": 0
+          "dy": 0,
+          "store": {
+            "comida": 20
+          }
         },
         {
           "kind": "panel",
@@ -82,7 +85,10 @@
         {
           "kind": "bateria",
           "dx": -14000,
-          "dy": 20000
+          "dy": 20000,
+          "store": {
+            "energia": 1800000
+          }
         },
         {
           "kind": "pozo",
@@ -104,10 +110,30 @@
         }
       ],
       "stocks": {
-        "energia": 3600000,
-        "comida": 50,
         "eagles": 0
-      }
+      },
+      "links": [
+        {
+          "kind": "cable",
+          "a": 1,
+          "b": 3
+        },
+        {
+          "kind": "cable",
+          "a": 2,
+          "b": 3
+        },
+        {
+          "kind": "cable",
+          "a": 3,
+          "b": 0
+        },
+        {
+          "kind": "canal",
+          "a": 4,
+          "b": 5
+        }
+      ]
     }
   },
   "comun": {

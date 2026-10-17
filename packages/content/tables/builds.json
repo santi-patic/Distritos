@@ -1,0 +1,30 @@
+{
+  "taller": {
+    "seconds": 43200,
+    "cost": {
+      "eagles": 30,
+      "madera": 20
+    },
+    "gapMm": 8000
+  },
+  "cobertizo": {
+    "seconds": 28800,
+    "cost": {
+      "eagles": 20,
+      "madera": 10
+    },
+    "gapMm": 8000
+  },
+  "bomba": {
+    "seconds": 36000,
+    "cost": {
+      "eagles": 40,
+      "piedra": 10
+    },
+    "gapMm": 8000,
+    "near": {
+      "kinds": ["manantial", "pozo"],
+      "hexes": 1
+    }
+  }
+}

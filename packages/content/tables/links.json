@@ -1,0 +1,23 @@
+{
+  "cable": {
+    "carries": "energia",
+    "unitMm": 50000,
+    "secondsPerUnit": 1800,
+    "firstSeconds": 300
+  },
+  "canal": {
+    "carries": "agua",
+    "unitMm": 50000,
+    "secondsPerUnit": 3600,
+    "firstSeconds": 300
+  },
+  "camino": {
+    "speedPermille": 2000,
+    "unitMm": 50000,
+    "secondsPerUnit": 3600,
+    "firstSeconds": 300,
+    "costPerUnit": {
+      "piedra": 5
+    }
+  }
+}

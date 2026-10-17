@@ -1,19 +1,44 @@
 /**
  * Forma de las tablas tal como están escritas (antes de compilar).
- * Duraciones en segundos, velocidades en mm/s, energías en julios, longitudes en mm.
+ *
+ * Unidades de autor: duraciones en segundos, velocidades en mm/s, longitudes en mm, energía
+ * en J, agua en L, comida en raciones. Las tasas se escriben con su periodo (`per`: 's', 'h' o
+ * 'dia'): 400 J por segundo son 400 W, 400 L por hora, 2 raciones por día. El compilador lo
+ * pasa todo a ticks y a unidades por día de 24 h.
  */
 
 import type { SceneKind, Weighted } from '@distritos/sim';
 
+export type RatePeriod = 's' | 'h' | 'dia';
+
+export interface RawRate {
+  resource: string;
+  amount: number;
+  per: RatePeriod;
+}
+
 export interface RawScene {
   tickMs: number;
   daySeconds: number;
+  /** Curva de luz escalonada: [segundo del día, milésimas]; cada punto rige hasta el siguiente. */
   light: [number, number][];
   hexSizeMm: number;
   maxCatchupDays: number;
+  /** Luz mínima para que avance una tarea (F1). */
+  workLight?: number;
+  /** Segundo del día del paso diario: comidas, suciedad, ciclos, pizarra (F1). */
+  dailyAt?: number;
 }
 
 export type RawScenes = Record<SceneKind, RawScene>;
+
+export interface RawStartElement {
+  kind: string;
+  dx: number;
+  dy: number;
+  store?: Record<string, number>;
+  on?: boolean;
+}
 
 export interface RawArchetype {
   tier: number;
@@ -21,25 +46,46 @@ export interface RawArchetype {
   finds: Record<string, Weighted[]>;
   start: {
     terrain: string;
-    elements: { kind: string; dx: number; dy: number }[];
+    elements: RawStartElement[];
     mobiles: { kind: string }[];
     stocks: Record<string, number>;
+    links?: { kind: string; a: number; b: number }[];
   };
 }
 
 export interface RawTemplate {
   kind: SceneKind;
   plots: { id: string; archetype: string; anchor: { q: number; r: number }; radius: number }[];
-  common: { archetype: string; sectors: { q: number; r: number }[] } | null;
+  common: {
+    archetype: string;
+    sectors: { q: number; r: number }[];
+    elements?: { kind: string; hex: { q: number; r: number }; dx: number; dy: number }[];
+  } | null;
 }
 
 export interface RawElement {
   category: 'fixed' | 'resource' | 'site';
+  stores?: Record<string, number>;
+  inventory?: boolean;
+  produce?: RawRate & {
+    to: 'self' | 'link';
+    light?: boolean;
+    wear?: boolean;
+    /** Milésimas de la producción nominal que da de media a plena luz (cielo, orientación). */
+    yieldPermille?: number;
+  };
+  consume?: RawRate;
+  switchable?: boolean;
+  beds?: number;
+  soil?: { perDay: number; max: number };
+  cycles?: { lossPermille: number };
 }
 
 export interface RawMobile {
   stats: { force: number; vision: number; alert: number; speedMmPerS: number };
   names: string[];
+  eats?: { resource: string; perDay: number };
+  hungryPermille?: number;
 }
 
 export interface RawTerrain {
@@ -47,7 +93,64 @@ export interface RawTerrain {
 }
 
 export interface RawActions {
-  reveal: { resource: string; costJ: number; seconds: number };
+  reveal: { resource: string; costJ: number; seconds: number; firstSeconds?: number };
+}
+
+export interface RawResource {
+  physical: boolean;
+  order: number;
+}
+
+export interface RawWork {
+  seconds: number;
+  firstSeconds?: number;
+  cost?: Record<string, number>;
+}
+
+export interface RawTask extends RawWork {
+  at: string[];
+  gives?: Record<string, number>;
+  into?: 'self' | 'inventory';
+  collect?: string;
+  clean?: boolean;
+  tool?: RawWork & { kind: string };
+}
+
+export interface RawBuild extends RawWork {
+  cost: Record<string, number>;
+  gapMm: number;
+  near?: { kinds: string[]; hexes: number };
+}
+
+export interface RawLink {
+  carries?: string;
+  speedPermille?: number;
+  unitMm: number;
+  secondsPerUnit: number;
+  firstSeconds?: number;
+  cost?: Record<string, number>;
+  costPerUnit?: Record<string, number>;
+  maxMm?: number;
+}
+
+export interface RawHire {
+  cost: Record<string, number>;
+}
+
+export interface RawEncargo {
+  id: string;
+  at: string;
+  resource: string;
+  /** Si es trabajo, `amount` y `perTrip` van en segundos de trabajo. */
+  work?: boolean;
+  amount: number;
+  perTrip: number;
+  reward: number;
+}
+
+export interface RawBoard {
+  currency: string;
+  encargos: RawEncargo[];
 }
 
 export interface RawTables {
@@ -58,6 +161,12 @@ export interface RawTables {
   mobiles: Record<string, RawMobile>;
   terrains: Record<string, RawTerrain>;
   actions: RawActions;
+  resources: Record<string, RawResource>;
+  tasks: Record<string, RawTask>;
+  builds: Record<string, RawBuild>;
+  links: Record<string, RawLink>;
+  hires: Record<string, RawHire>;
+  board: RawBoard;
 }
 
 export const TABLE_NAMES = [
@@ -68,5 +177,11 @@ export const TABLE_NAMES = [
   'mobiles',
   'terrains',
   'actions',
+  'resources',
+  'tasks',
+  'builds',
+  'links',
+  'hires',
+  'board',
 ] as const;
 export type TableName = (typeof TABLE_NAMES)[number];

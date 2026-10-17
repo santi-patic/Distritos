@@ -1,0 +1,45 @@
+{
+  "sacar_agua": {
+    "at": ["pozo"],
+    "seconds": 3600,
+    "firstSeconds": 120,
+    "gives": {
+      "agua": 40
+    },
+    "into": "self"
+  },
+  "recoger": {
+    "at": ["huerta"],
+    "seconds": 1800,
+    "firstSeconds": 60,
+    "collect": "comida"
+  },
+  "limpiar": {
+    "at": ["panel"],
+    "seconds": 14400,
+    "clean": true,
+    "tool": {
+      "kind": "taller",
+      "seconds": 7200,
+      "cost": {
+        "energia": 720000
+      }
+    }
+  },
+  "talar": {
+    "at": ["madera"],
+    "seconds": 3600,
+    "gives": {
+      "madera": 5
+    },
+    "into": "inventory"
+  },
+  "picar": {
+    "at": ["piedra"],
+    "seconds": 3600,
+    "gives": {
+      "piedra": 5
+    },
+    "into": "inventory"
+  }
+}

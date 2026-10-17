@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/board.schema.json",
+  "title": "Pizarra del común",
+  "description": "Encargos que el distrito publica, uno por día y por orden. Cada entrega paga su parte de la recompensa.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["currency", "encargos"],
+  "properties": {
+    "currency": {
+      "$ref": "common.schema.json#/definitions/kindId"
+    },
+    "encargos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "at", "resource", "amount", "perTrip", "reward"],
+        "properties": {
+          "id": {
+            "$ref": "common.schema.json#/definitions/kindId"
+          },
+          "at": {
+            "$ref": "common.schema.json#/definitions/kindId",
+            "description": "Elemento de la tierra común de destino."
+          },
+          "resource": {
+            "$ref": "common.schema.json#/definitions/kindId"
+          },
+          "work": {
+            "type": "boolean",
+            "description": "Horas de trabajo: amount y perTrip en segundos."
+          },
+          "amount": {
+            "$ref": "common.schema.json#/definitions/posInt"
+          },
+          "perTrip": {
+            "$ref": "common.schema.json#/definitions/posInt"
+          },
+          "reward": {
+            "$ref": "common.schema.json#/definitions/nonNegInt"
+          }
+        }
+      }
+    }
+  }
+}

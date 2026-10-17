@@ -2,30 +2,100 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://distritos.local/schemas/common.schema.json",
   "definitions": {
-    "kindId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-    "int": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
-    "nonNegInt": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-    "posInt": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-    "permille": { "type": "integer", "minimum": 0, "maximum": 1000 },
+    "kindId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "int": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "nonNegInt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "posInt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "permille": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
     "hex": {
       "type": "object",
       "additionalProperties": false,
       "required": ["q", "r"],
-      "properties": { "q": { "$ref": "#/definitions/int" }, "r": { "$ref": "#/definitions/int" } }
+      "properties": {
+        "q": {
+          "$ref": "#/definitions/int"
+        },
+        "r": {
+          "$ref": "#/definitions/int"
+        }
+      }
     },
     "weighted": {
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "weight"],
       "properties": {
-        "kind": { "$ref": "#/definitions/kindId" },
-        "weight": { "$ref": "#/definitions/nonNegInt" }
+        "kind": {
+          "$ref": "#/definitions/kindId"
+        },
+        "weight": {
+          "$ref": "#/definitions/nonNegInt"
+        }
       }
     },
     "stocks": {
       "type": "object",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
-      "additionalProperties": { "$ref": "#/definitions/nonNegInt" }
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/nonNegInt"
+      }
+    },
+    "amounts": {
+      "type": "object",
+      "description": "Cantidades por recurso, en la unidad de cada recurso (energía en J, agua en L, comida en raciones).",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/nonNegInt"
+      }
+    },
+    "ratePeriod": {
+      "enum": ["s", "h", "dia"],
+      "description": "Periodo de una tasa: por segundo (400 J/s son 400 W), por hora o por día."
+    },
+    "rate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "amount", "per"],
+      "properties": {
+        "resource": {
+          "$ref": "#/definitions/kindId"
+        },
+        "amount": {
+          "$ref": "#/definitions/nonNegInt"
+        },
+        "per": {
+          "$ref": "#/definitions/ratePeriod"
+        }
+      }
+    },
+    "seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 31536000,
+      "description": "Duración en segundos."
     }
   }
 }

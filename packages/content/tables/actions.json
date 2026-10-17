@@ -2,6 +2,7 @@
   "reveal": {
     "resource": "energia",
     "costJ": 360000,
-    "seconds": 5
+    "seconds": 10800,
+    "firstSeconds": 300
   }
 }

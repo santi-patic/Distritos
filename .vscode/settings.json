@@ -27,6 +27,30 @@
     {
       "fileMatch": ["packages/content/tables/actions.json"],
       "url": "./packages/content/schemas/actions.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/resources.json"],
+      "url": "./packages/content/schemas/resources.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/tasks.json"],
+      "url": "./packages/content/schemas/tasks.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/builds.json"],
+      "url": "./packages/content/schemas/builds.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/links.json"],
+      "url": "./packages/content/schemas/links.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/hires.json"],
+      "url": "./packages/content/schemas/hires.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/board.json"],
+      "url": "./packages/content/schemas/board.schema.json"
     }
   ],
   "editor.formatOnSave": true,

@@ -110,15 +110,19 @@ export function nextWorkStart(state: SimState, content: CompiledContent, tick: T
   return null;
 }
 
-/** Si el tick es el del paso diario de la escena. */
+/**
+ * Si el tick es el del paso diario de la escena. El tick de creación nunca lo es: el primer
+ * día empieza al crear la escena, aunque se cree justo a la hora del paso diario.
+ */
 export function isDailyTick(state: SimState, content: CompiledContent, tick: Tick = state.tick): boolean {
   const daily = content.scenes[state.scene.kind].dailyAt;
-  return daily !== undefined && phaseAt(state, tick) === daily;
+  return daily !== undefined && tick > 0 && phaseAt(state, tick) === daily;
 }
 
 /** Próximo tick ≥ `tick` del paso diario, o null si la escena no tiene paso diario. */
 export function nextDailyTick(state: SimState, content: CompiledContent, tick: Tick): Tick | null {
   const daily = content.scenes[state.scene.kind].dailyAt;
   if (daily === undefined) return null;
-  return tick + fmod(daily - phaseAt(state, tick), state.scene.dayTicks);
+  const next = tick + fmod(daily - phaseAt(state, tick), state.scene.dayTicks);
+  return next === 0 ? state.scene.dayTicks : next;
 }

@@ -3,11 +3,93 @@
   "$id": "https://distritos.local/schemas/elements.schema.json",
   "title": "Elementos",
   "type": "object",
-  "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
   "additionalProperties": {
     "type": "object",
     "additionalProperties": false,
     "required": ["category"],
-    "properties": { "category": { "enum": ["fixed", "resource", "site"] } }
+    "properties": {
+      "category": {
+        "enum": ["fixed", "resource", "site"]
+      },
+      "stores": {
+        "$ref": "common.schema.json#/definitions/amounts",
+        "description": "Capacidad de sus almacenes por recurso."
+      },
+      "inventory": {
+        "type": "boolean",
+        "description": "Sus almacenes son existencias del dueño: de ahí salen los costes y las comidas."
+      },
+      "produce": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resource", "amount", "per", "to"],
+        "properties": {
+          "resource": {
+            "$ref": "common.schema.json#/definitions/kindId"
+          },
+          "amount": {
+            "$ref": "common.schema.json#/definitions/nonNegInt"
+          },
+          "per": {
+            "$ref": "common.schema.json#/definitions/ratePeriod"
+          },
+          "to": {
+            "enum": ["self", "link"],
+            "description": "A su propio almacén o al almacén al que lo une un nexo."
+          },
+          "light": {
+            "type": "boolean",
+            "description": "Escala con la luz (paneles)."
+          },
+          "wear": {
+            "type": "boolean",
+            "description": "Escala con (1000 − desgaste): la suciedad le quita rendimiento."
+          },
+          "yieldPermille": {
+            "$ref": "common.schema.json#/definitions/permille",
+            "description": "Milésimas de lo nominal que da de media a plena luz (cielo, orientación)."
+          }
+        }
+      },
+      "consume": {
+        "$ref": "common.schema.json#/definitions/rate",
+        "description": "Lo que gasta, del almacén al que lo une un nexo."
+      },
+      "switchable": {
+        "type": "boolean",
+        "description": "Se enciende y se apaga; se apaga solo sin suministro o con su almacén lleno."
+      },
+      "beds": {
+        "$ref": "common.schema.json#/definitions/nonNegInt"
+      },
+      "soil": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["perDay", "max"],
+        "description": "Desgaste por calendario, reversible y con tope (milésimas).",
+        "properties": {
+          "perDay": {
+            "$ref": "common.schema.json#/definitions/permille"
+          },
+          "max": {
+            "$ref": "common.schema.json#/definitions/permille"
+          }
+        }
+      },
+      "cycles": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lossPermille"],
+        "description": "Desgaste por uso: milésimas de capacidad perdidas por ciclo completo de descarga.",
+        "properties": {
+          "lossPermille": {
+            "$ref": "common.schema.json#/definitions/permille"
+          }
+        }
+      }
+    }
   }
 }

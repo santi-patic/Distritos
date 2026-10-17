@@ -1,10 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { assertAllIntegers, createScene, hashOf, replay, type Order } from '@distritos/sim';
+import {
+  advance,
+  assertAllIntegers,
+  createScene,
+  hashOf,
+  nextLightChange,
+  rateDen,
+  replay,
+  resolveFlows,
+  type Order,
+  type SceneParams,
+} from '@distritos/sim';
 import { ContentError, compile, content, tables, validateTables, type RawTables } from '../src/index.js';
 
 function clone<T>(v: T): T {
   return structuredClone(v);
 }
+
+const casa: SceneParams = {
+  kind: 'district',
+  template: 'f1_casa',
+  seed: 'f1f1f1f1f1f1f1f1',
+  actors: [{ id: 'a', plot: 'p1' }],
+};
 
 describe('tablas del repositorio', () => {
   it('cumplen su esquema y compilan', () => {
@@ -14,16 +32,53 @@ describe('tablas del repositorio', () => {
     assertAllIntegers(c);
   });
 
-  it('convierten unidades: segundos a ticks y hexágono a retícula entera', () => {
+  it('convierten unidades: segundos a ticks, tasas a unidades por día y hexágono a retícula entera', () => {
     const c = content();
     expect(c.scenes.district.tickMs).toBe(100);
     expect(c.scenes.district.dayTicks).toBe(864_000);
-    expect(c.scenes.district.light[2]).toEqual([270_000, 1000]);
+    expect(c.scenes.district.light[4]).toEqual([270_000, 1000]);
+    expect(c.scenes.district.workLight).toBe(200);
+    expect(c.scenes.district.dailyAt).toBe(0);
     expect(c.scenes.district.hexW).toBe(86_602);
     expect(c.scenes.district.hexH).toBe(75_000);
     expect(c.scenes.district.maxCatchupTicks).toBe(30 * 864_000);
-    expect(c.actions.reveal).toEqual({ resource: 'energia', cost: 360_000, ticks: 50 });
-    expect(c.mobiles.obrero_peon?.stats.speed).toBe(20_000);
+    expect(c.actions.reveal).toEqual({
+      resource: 'energia',
+      cost: 360_000,
+      ticks: 108_000,
+      firstTicks: 3_000,
+    });
+    // 400 W de placa por el 293 ‰ del cielo gallego, en julios por día.
+    expect(c.elements.panel?.produce).toEqual({
+      resource: 'energia',
+      perDay: 10_126_080,
+      to: 'link',
+      light: true,
+      wear: true,
+    });
+    expect(c.elements.casa?.consume).toEqual({ resource: 'energia', perDay: 15 * 86_400 });
+    expect(c.elements.bomba?.consume).toEqual({ resource: 'energia', perDay: 250 * 86_400 });
+    expect(c.elements.bomba?.produce).toEqual({ resource: 'agua', perDay: 400 * 24, to: 'self' });
+    expect(c.elements.huerta?.produce).toEqual({ resource: 'comida', perDay: 2, to: 'self' });
+    expect(c.tasks?.sacar_agua).toMatchObject({
+      ticks: 36_000,
+      firstTicks: 1_200,
+      gives: { agua: 40 },
+      into: 'self',
+    });
+    expect(c.tasks?.limpiar?.tool).toEqual({ kind: 'taller', ticks: 72_000, cost: { energia: 720_000 } });
+    expect(c.links?.cable).toMatchObject({ carries: 'energia', unitMm: 50_000, ticksPerUnit: 18_000 });
+    expect(c.links?.camino).toMatchObject({ speedPermille: 2000, costPerUnit: { piedra: 5 } });
+    expect(c.board?.encargos[2]).toMatchObject({
+      id: 'obra_comun',
+      work: true,
+      amount: 144_000,
+      perTrip: 72_000,
+    });
+    expect(c.mobiles.obrero_peon).toMatchObject({
+      eats: { resource: 'comida', perDay: 1 },
+      hungryPermille: 500,
+    });
   });
 
   it('el hash es el del contenido compilado y es estable', () => {
@@ -33,28 +88,56 @@ describe('tablas del repositorio', () => {
     expect(compile(tables).hash).toBe(hash);
   });
 
-  it('el sim arranca con ellas: plantilla f0_solo, 37 sectores, seis elementos y dos obreros', () => {
+  it('cumplen el presupuesto de energía del diseño: 2,4 kWh de dos paneles y 0,36 kWh de la casa al día', () => {
     const c = content();
-    const s = createScene(
-      { kind: 'district', template: 'f0_solo', seed: 'abcdef0123456789', actors: [{ id: 'a', plot: 'p1' }] },
-      c,
-    );
-    expect(Object.keys(s.map.sectors)).toHaveLength(37);
-    expect(Object.keys(s.elements)).toHaveLength(6);
+    const s = createScene(casa, c);
+    const D = rateDen(s);
+    let joules = 0;
+    let t = 0;
+    while (t < s.scene.dayTicks) {
+      const next = Math.min(nextLightChange(s, c, t) ?? s.scene.dayTicks, s.scene.dayTicks);
+      const battery = resolveFlows(s, c, t).stores.find(
+        (f) => f.element === 'e4' && f.resource === 'energia',
+      );
+      joules += ((battery?.inflow ?? 0) * (next - t)) / D;
+      t = next;
+    }
+    const kWh = joules / 3_600_000;
+    expect(kWh).toBeGreaterThan(2.38);
+    expect(kWh).toBeLessThan(2.42);
+    expect(((c.elements.casa?.consume?.perDay ?? 0) / 3_600_000).toFixed(2)).toBe('0.36');
+  });
+
+  it('el sim arranca con ellas: la casa de F1 cableada, la tierra común y la pizarra', () => {
+    const c = content();
+    const s = createScene(casa, c);
+    expect(Object.keys(s.map.sectors)).toHaveLength(37 + 3);
+    expect(Object.keys(s.elements)).toHaveLength(6 + 2);
     expect(Object.keys(s.mobiles)).toHaveLength(2);
+    expect(Object.keys(s.links)).toHaveLength(4);
+    expect(s.elements.e4?.store).toEqual({ energia: 1_800_000 });
+    expect(s.elements.e1?.store).toEqual({ comida: 20, madera: 0, piedra: 0 });
+    expect(s.district.board?.encargo).toMatchObject({ id: 1, kind: 'energia_carga', at: 'e7' });
+    // A medianoche las aperturas esperan a la luz de trabajo (6:30): la primera dura 5 minutos;
+    // la segunda, ya no es la primera vez, 3 horas.
     const log: Order[] = [
       { seq: 1, tick: 0, actor: 'a', kind: 'reveal', args: { mobile: 'm1', hex: '1,0' } },
       { seq: 2, tick: 0, actor: 'a', kind: 'reveal', args: { mobile: 'm2', hex: '0,1' } },
     ];
-    const end = replay(
-      { kind: 'district', template: 'f0_solo', seed: 'abcdef0123456789', actors: [{ id: 'a', plot: 'p1' }] },
-      log,
-      2_000,
-      c,
-    );
-    expect(end.map.sectors['1,0']?.status).toBe('revealed');
-    expect(end.map.sectors['0,1']?.status).toBe('revealed');
-    expect(end.actors.a?.stocks.energia).toBe(3_600_000 - 2 * 360_000);
+    const early = replay(casa, log, 236_000, c);
+    expect(early.map.sectors['1,0']?.status).toBe('hidden');
+    const later = createScene(casa, c);
+    advance(later, log, 240_000, c);
+    expect(later.map.sectors['1,0']?.status).toBe('revealed');
+    expect(later.map.sectors['0,1']?.status).toBe('hidden');
+    advance(later, log, 234_000 + 108_000 + 100, c);
+    expect(later.map.sectors['0,1']?.status).toBe('revealed');
+  });
+
+  it('la plantilla de F0 sigue creando escena (el cliente la usa hasta la tanda 3)', () => {
+    const s = createScene({ ...casa, template: 'f0_solo' }, content());
+    expect(Object.keys(s.map.sectors)).toHaveLength(37);
+    expect(s.district.board).toBeUndefined();
   });
 });
 
@@ -106,5 +189,32 @@ describe('el compilador rechaza', () => {
       [100, 0],
     ];
     expect(() => compile(u)).toThrow(/orden creciente/);
+  });
+
+  it('una tasa con un periodo que no existe', () => {
+    const t = clone(tables) as unknown as { elements: Record<string, { produce: { per: string } }> };
+    t.elements.panel!.produce.per = 'min';
+    expect(() => compile(t as unknown as RawTables)).toThrow(/produce\/per/);
+  });
+
+  it('un recurso, un elemento o un nexo que no existen', () => {
+    const t = clone<RawTables>(tables);
+    t.tasks.talar!.gives = { oro: 1 };
+    expect(() => compile(t)).toThrow(/recurso desconocido oro/);
+    const u = clone<RawTables>(tables);
+    u.board.encargos[0]!.at = 'castillo';
+    expect(() => compile(u)).toThrow(/elemento desconocido castillo/);
+    const w = clone<RawTables>(tables);
+    w.archetypes.finca_prado!.start.links![0]!.b = 99;
+    expect(() => compile(w)).toThrow(/fuera de la dotación/);
+  });
+
+  it('flujos que no se pueden resolver', () => {
+    const t = clone<RawTables>(tables);
+    t.resources.energia!.order = 9;
+    expect(() => compile(t)).toThrow(/tiene que ir antes/);
+    const u = clone<RawTables>(tables);
+    u.elements.huerta!.stores = { agua: 10 };
+    expect(() => compile(u)).toThrow(/no almacena comida/);
   });
 });

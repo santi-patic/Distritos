@@ -54,8 +54,8 @@ for (const name of ['f0-basic', 'f1-basic']) {
   });
 }
 
-test('f0-real (tablas del repositorio) da en Chromium los hashes dorados de Node', async ({ page }) => {
-  const fixture = readJson(join(ROOT, 'content', 'test', 'fixtures', 'f0-real.json')) as Fixture;
+test('f1-real (tablas del repositorio) da en Chromium los hashes dorados de Node', async ({ page }) => {
+  const fixture = readJson(join(ROOT, 'content', 'test', 'fixtures', 'f1-real.json')) as Fixture;
   const contentHash = await page.evaluate(
     () => (window as unknown as { __distritos: { contentHash: string } }).__distritos.contentHash,
   );

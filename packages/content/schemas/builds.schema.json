@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/builds.schema.json",
+  "title": "Edificios construibles",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["seconds", "cost", "gapMm"],
+    "properties": {
+      "seconds": {
+        "$ref": "common.schema.json#/definitions/seconds"
+      },
+      "firstSeconds": {
+        "$ref": "common.schema.json#/definitions/seconds",
+        "description": "La primera vez del jugador (entrada fácil)."
+      },
+      "cost": {
+        "$ref": "common.schema.json#/definitions/amounts",
+        "description": "Se cobra al dar la orden."
+      },
+      "gapMm": {
+        "$ref": "common.schema.json#/definitions/nonNegInt",
+        "description": "Distancia mínima a cualquier otro elemento."
+      },
+      "near": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kinds", "hexes"],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "common.schema.json#/definitions/kindId"
+            }
+          },
+          "hexes": {
+            "$ref": "common.schema.json#/definitions/nonNegInt"
+          }
+        }
+      }
+    }
+  }
+}

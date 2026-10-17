@@ -7,10 +7,18 @@
   "additionalProperties": false,
   "required": ["district", "incursion", "charge", "dispute"],
   "properties": {
-    "district": { "$ref": "#/definitions/scene" },
-    "incursion": { "$ref": "#/definitions/scene" },
-    "charge": { "$ref": "#/definitions/scene" },
-    "dispute": { "$ref": "#/definitions/scene" }
+    "district": {
+      "$ref": "#/definitions/scene"
+    },
+    "incursion": {
+      "$ref": "#/definitions/scene"
+    },
+    "charge": {
+      "$ref": "#/definitions/scene"
+    },
+    "dispute": {
+      "$ref": "#/definitions/scene"
+    }
   },
   "definitions": {
     "scene": {
@@ -18,8 +26,15 @@
       "additionalProperties": false,
       "required": ["tickMs", "daySeconds", "light", "hexSizeMm", "maxCatchupDays"],
       "properties": {
-        "tickMs": { "type": "integer", "minimum": 1, "maximum": 60000 },
-        "daySeconds": { "type": "integer", "minimum": 1 },
+        "tickMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "daySeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
         "light": {
           "type": "array",
           "minItems": 1,
@@ -28,13 +43,36 @@
             "minItems": 2,
             "maxItems": 2,
             "items": [
-              { "type": "integer", "minimum": 0 },
-              { "type": "integer", "minimum": 0, "maximum": 1000 }
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
             ]
-          }
+          },
+          "description": "Curva escalonada: [segundo del día, milésimas]; cada punto rige hasta el siguiente y antes del primero rige el último."
         },
-        "hexSizeMm": { "type": "integer", "minimum": 1000 },
-        "maxCatchupDays": { "type": "integer", "minimum": 0 }
+        "hexSizeMm": {
+          "type": "integer",
+          "minimum": 1000
+        },
+        "maxCatchupDays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workLight": {
+          "$ref": "common.schema.json#/definitions/permille",
+          "description": "Luz mínima, en milésimas, para que avance una tarea (F1). Sin ella, se trabaja a cualquier hora."
+        },
+        "dailyAt": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Segundo del día del paso diario: comidas, suciedad, ciclos de batería, pizarra (F1)."
+        }
       }
     }
   }

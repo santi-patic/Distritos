@@ -6,7 +6,12 @@
       "alert": 1,
       "speedMmPerS": 20000
     },
-    "names": ["Antía", "Breixo", "Xiana", "Roi", "Sabela", "Brais", "Noa", "Martiño"]
+    "names": ["Antía", "Breixo", "Xiana", "Roi", "Sabela", "Brais", "Noa", "Martiño"],
+    "eats": {
+      "resource": "comida",
+      "perDay": 1
+    },
+    "hungryPermille": 500
   },
   "obrero_tecnico": {
     "stats": {
@@ -15,6 +20,11 @@
       "alert": 2,
       "speedMmPerS": 15000
     },
-    "names": ["Iria", "Xoán", "Uxía", "Paio", "Lúa", "Anxo"]
+    "names": ["Iria", "Xoán", "Uxía", "Paio", "Lúa", "Anxo"],
+    "eats": {
+      "resource": "comida",
+      "perDay": 1
+    },
+    "hungryPermille": 500
   }
 }

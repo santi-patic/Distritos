@@ -1,0 +1,320 @@
+{
+  "name": "f1-real",
+  "description": "Las tablas del repositorio, plantilla f1_casa: cuatro días de la casa con aperturas, tareas, construcción, nexos, contratación, bomba y encargos.",
+  "params": {
+    "kind": "district",
+    "template": "f1_casa",
+    "seed": "f1f1f1f1f1f1f1f1",
+    "actors": [
+      {
+        "id": "santi",
+        "plot": "p1"
+      }
+    ]
+  },
+  "orders": [
+    {
+      "seq": 1,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "-1,1"
+      }
+    },
+    {
+      "seq": 2,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m2",
+        "element": "e5",
+        "task": "sacar_agua"
+      }
+    },
+    {
+      "seq": 3,
+      "tick": 5,
+      "actor": "sys",
+      "kind": "credit",
+      "args": {
+        "actor": "santi",
+        "resource": "eagles",
+        "amount": 100,
+        "ref": "libro:prueba"
+      }
+    },
+    {
+      "seq": 4,
+      "tick": 240000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m2",
+        "element": "e6",
+        "task": "recoger"
+      }
+    },
+    {
+      "seq": 5,
+      "tick": 300000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m2",
+        "element": "e5",
+        "task": "sacar_agua"
+      }
+    },
+    {
+      "seq": 6,
+      "tick": 300000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e9",
+        "task": "talar"
+      }
+    },
+    {
+      "seq": 7,
+      "tick": 400000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e9",
+        "task": "talar"
+      }
+    },
+    {
+      "seq": 8,
+      "tick": 450000,
+      "actor": "santi",
+      "kind": "deliver",
+      "args": {
+        "mobile": "m2",
+        "encargo": 1
+      }
+    },
+    {
+      "seq": 9,
+      "tick": 600000,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "-1,0"
+      }
+    },
+    {
+      "seq": 10,
+      "tick": 1164000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m2",
+        "element": "e6",
+        "task": "recoger"
+      }
+    },
+    {
+      "seq": 11,
+      "tick": 1184000,
+      "actor": "santi",
+      "kind": "build",
+      "args": {
+        "mobile": "m2",
+        "kind": "cobertizo",
+        "pos": {
+          "x": 10000,
+          "y": 30000
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "tick": 1184000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e10",
+        "task": "picar"
+      }
+    },
+    {
+      "seq": 13,
+      "tick": 1264000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e10",
+        "task": "picar"
+      }
+    },
+    {
+      "seq": 14,
+      "tick": 1314000,
+      "actor": "santi",
+      "kind": "link",
+      "args": {
+        "mobile": "m1",
+        "kind": "camino",
+        "from": "e1",
+        "to": "e5"
+      }
+    },
+    {
+      "seq": 15,
+      "tick": 1828000,
+      "actor": "santi",
+      "kind": "hire",
+      "args": {
+        "kind": "obrero_peon"
+      }
+    },
+    {
+      "seq": 16,
+      "tick": 2028000,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m3",
+        "hex": "0,1"
+      }
+    },
+    {
+      "seq": 17,
+      "tick": 2028000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e10",
+        "task": "picar"
+      }
+    },
+    {
+      "seq": 18,
+      "tick": 2078000,
+      "actor": "santi",
+      "kind": "build",
+      "args": {
+        "mobile": "m2",
+        "kind": "bomba",
+        "pos": {
+          "x": -5000,
+          "y": -35000
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "tick": 2128000,
+      "actor": "santi",
+      "kind": "deliver",
+      "args": {
+        "mobile": "m1",
+        "encargo": 3
+      }
+    },
+    {
+      "seq": 20,
+      "tick": 2992000,
+      "actor": "santi",
+      "kind": "link",
+      "args": {
+        "mobile": "m1",
+        "kind": "cable",
+        "from": "e4",
+        "to": "e12"
+      }
+    },
+    {
+      "seq": 21,
+      "tick": 2992000,
+      "actor": "santi",
+      "kind": "link",
+      "args": {
+        "mobile": "m3",
+        "kind": "canal",
+        "from": "e12",
+        "to": "e6"
+      }
+    },
+    {
+      "seq": 22,
+      "tick": 3042000,
+      "actor": "santi",
+      "kind": "toggle",
+      "args": {
+        "element": "e12",
+        "on": true
+      }
+    },
+    {
+      "seq": 23,
+      "tick": 3042000,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m2",
+        "element": "e2",
+        "task": "limpiar"
+      }
+    }
+  ],
+  "contentHash": "24187e644885ef7747906347320c6b9ca182914d08e0b6fe8f4a00a4d12eb556",
+  "checkpoints": [
+    {
+      "tick": 1,
+      "hash": "ff0462b9a60683df771664b6568759c0315d2bfad4911d505d04892a679ad12a",
+      "view": "009e082203b9125193dc2467fb35986e2fea89ae42696f795852aed8aaf59bec"
+    },
+    {
+      "tick": 240000,
+      "hash": "f766603a0165923e60614e1eb4a6e7b0e21d836cc5be9d84ef5c9d079f0062ab",
+      "view": "ee65d6c4ecf0d94442e487257586ecc140be07f5de716d5a010d811ce1a9da2d"
+    },
+    {
+      "tick": 640000,
+      "hash": "4b6adef487dd6606bba0f3ae4b1690b48c7c893fb43c1c8684329d84998d4627",
+      "view": "469aac32c5a536381bae15a8d7f857c70fcad8210c4e8bf98f436328137a1651"
+    },
+    {
+      "tick": 864000,
+      "hash": "20e487662db6e364d62e10b0c537c6dc415d1dea828c536d746004371131d1d1",
+      "view": "5cb8c82a847ab15734ad7ea980d4b3a132e22a1d241529e3c27a595e47fbf239"
+    },
+    {
+      "tick": 1364000,
+      "hash": "f08a09dc5213d306fb78b8000f10a3ca8473bb31bf46c70e82474d6cec4eceab",
+      "view": "91721dcbb3e8fb6afd3ab027efa8d6f7b9f1d07f4b2949c4f3717dd5d9a15ca3"
+    },
+    {
+      "tick": 1728000,
+      "hash": "d7482c5058842c66efc6fbff3a01e6d5e02ed533a002472bbcccb754b213ee2f",
+      "view": "444adbbb774aafd036fa8510a4c688676e9bf4b4b1738419a27a14c1f520f8d7"
+    },
+    {
+      "tick": 2228000,
+      "hash": "5e298939f6ef004f590ad6f585ae50b096c8c4be3d3d1093b931adbc352ebfcd",
+      "view": "6411787c08308048cb25fdb19166eb2eb031a5aaf71f4dfb33eba076a0ee50f7"
+    },
+    {
+      "tick": 3092000,
+      "hash": "22b640cc58a7dc60087bde2969884d5dde3204e9e5b1ad045fe91ed066f8bfd7",
+      "view": "07ff0fbda694040bfb409c3aee8da0218aa7d2a5ca8578b566654c1b633b0c84"
+    },
+    {
+      "tick": 3456000,
+      "hash": "c8022fefd414d994f78d8ac3edfcdc46afe198bf1302cb88697f42c4fdd6c20b",
+      "view": "058c9a6a68294fba8ee45edfc3acd6809ff4f580b18308e7499b8019ad066d5c"
+    }
+  ]
+}

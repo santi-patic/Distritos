@@ -1,18 +1,109 @@
 {
   "casa": {
-    "category": "fixed"
+    "category": "fixed",
+    "stores": {
+      "comida": 60,
+      "madera": 10,
+      "piedra": 10
+    },
+    "inventory": true,
+    "beds": 2,
+    "consume": {
+      "resource": "energia",
+      "amount": 15,
+      "per": "s"
+    }
   },
   "panel": {
-    "category": "fixed"
+    "category": "fixed",
+    "produce": {
+      "resource": "energia",
+      "amount": 400,
+      "per": "s",
+      "to": "link",
+      "light": true,
+      "wear": true,
+      "yieldPermille": 293
+    },
+    "soil": {
+      "perDay": 15,
+      "max": 300
+    }
   },
   "bateria": {
-    "category": "fixed"
+    "category": "fixed",
+    "stores": {
+      "energia": 3600000
+    },
+    "inventory": true,
+    "cycles": {
+      "lossPermille": 1
+    }
   },
   "pozo": {
-    "category": "fixed"
+    "category": "fixed",
+    "stores": {
+      "agua": 200
+    }
   },
   "huerta": {
+    "category": "fixed",
+    "stores": {
+      "comida": 6
+    },
+    "consume": {
+      "resource": "agua",
+      "amount": 100,
+      "per": "dia"
+    },
+    "produce": {
+      "resource": "comida",
+      "amount": 2,
+      "per": "dia",
+      "to": "self"
+    }
+  },
+  "taller": {
     "category": "fixed"
+  },
+  "cobertizo": {
+    "category": "fixed",
+    "beds": 2,
+    "stores": {
+      "madera": 50,
+      "piedra": 50
+    },
+    "inventory": true
+  },
+  "bomba": {
+    "category": "fixed",
+    "switchable": true,
+    "stores": {
+      "agua": 1000
+    },
+    "consume": {
+      "resource": "energia",
+      "amount": 250,
+      "per": "s"
+    },
+    "produce": {
+      "resource": "agua",
+      "amount": 400,
+      "per": "h",
+      "to": "self"
+    }
+  },
+  "punto_carga": {
+    "category": "fixed",
+    "stores": {
+      "energia": 36000000
+    }
+  },
+  "almacen_comun": {
+    "category": "fixed",
+    "stores": {
+      "comida": 600
+    }
   },
   "colina": {
     "category": "site"

@@ -22,6 +22,15 @@ export type {
   RawMobile,
   RawTerrain,
   RawActions,
+  RawResource,
+  RawTask,
+  RawBuild,
+  RawLink,
+  RawHire,
+  RawBoard,
+  RawEncargo,
+  RawRate,
+  RatePeriod,
   TableName,
 } from './raw.js';
 export { TABLE_NAMES } from './raw.js';
