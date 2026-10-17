@@ -27,8 +27,23 @@ Los documentos de diseño (fundacional, espacio de diseño, estudio de Hades' St
 
 ```sh
 pnpm install
-pnpm check          # lint + typecheck + test
+pnpm check                          # lint + typecheck + test (sim y content)
 pnpm -F @distritos/sim test -- --watch
+pnpm -F @distritos/client dev       # el juego en http://localhost:5173 y en la red local
+pnpm -F @distritos/client test:e2e  # prueba entre runtimes (Node contra Chromium)
 ```
 
 Node 22 y pnpm 10. El clon va fuera de carpetas sincronizadas (OneDrive, Drive): `node_modules` y `.git` no se llevan bien con ellas.
+
+### Probar en el móvil
+
+`pnpm -F @distritos/client dev` imprime una dirección «Network» (`http://192.168.x.x:5173`); con el móvil en la misma wifi, esa dirección abre el juego. `?seed=<hex>` en la URL cambia la finca. Los hashes dorados (`packages/sim/test/fixtures`, `packages/content/test/fixtures`) son los mismos que verifica la CI: si `pnpm check` pasa en otra máquina, esa máquina simula igual.
+
+### Cuando cambia una regla o una tabla
+
+```sh
+UPDATE_GOLDENS=1 pnpm -F @distritos/sim test
+UPDATE_GOLDENS=1 pnpm -F @distritos/content test
+```
+
+y una línea en el registro de decisiones diciendo qué cambió.
