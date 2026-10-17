@@ -1,8 +1,10 @@
 /**
- * La prueba de fuego de F0 en forma automática (esquema §17): la misma lista de órdenes da
- * el mismo hash, por tres caminos (step en bucle, advance, replay), tras serializar, con dos
- * instancias del módulo, con intenciones al azar, y contra los hashes dorados comprometidos
- * en el repositorio. Para regenerar los dorados tras un cambio de regla deliberado:
+ * La prueba de fuego en forma automática (esquema §17): la misma lista de órdenes da el mismo
+ * hash por cuatro caminos (step tick a tick, advance de una vez, advance troceado en tramos al
+ * azar y replay), tras serializar, con dos instancias del módulo, con intenciones al azar, y
+ * contra los hashes dorados comprometidos en el repositorio. «Rápido = lento» de F1: los
+ * flujos acumulados en bloque por advance coinciden con los acumulados tick a tick. Para
+ * regenerar los dorados tras un cambio de regla deliberado:
  *
  *     UPDATE_GOLDENS=1 pnpm -F @distritos/sim test
  *
@@ -14,15 +16,19 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { hashOf } from '../src/hash.js';
 import { hashState } from '../src/index.js';
-import { key, parse, range } from '../src/hex.js';
+import { center, key, parse, range } from '../src/hex.js';
 import { nextInt, seed, type RngState } from '../src/rng.js';
+import { capacityOf } from '../src/rules/elements.js';
+import { validate } from '../src/rules/orders.js';
 import { createScene, type SceneParams } from '../src/scene.js';
 import { assertAllIntegers, clone, deserialize, serialize } from '../src/serialize.js';
 import { advance, replay, step } from '../src/step.js';
-import type { Order, OrderIntent, OrderLog } from '../src/types/orders.js';
+import type { CompiledContent } from '../src/types/content.js';
+import type { Event } from '../src/types/events.js';
+import type { Order, OrderIntent, OrderKind, OrderLog } from '../src/types/orders.js';
 import type { SimState } from '../src/types/state.js';
 import { view } from '../src/view.js';
-import { testContent } from './content.js';
+import { testContent, testContentF1, testContentNamed } from './content.js';
 
 const content = testContent();
 const FIXTURES = join(import.meta.dirname, 'fixtures');
@@ -37,6 +43,8 @@ interface Checkpoint {
 interface Fixture {
   name: string;
   description: string;
+  /** Fichero de contenido de prueba (por defecto, content.json, el de F0). */
+  content?: string;
   params: SceneParams;
   orders: OrderLog;
   checkpoints: Checkpoint[];
@@ -52,15 +60,51 @@ function loadFixtures(): { file: string; fixture: Fixture }[] {
     }));
 }
 
-/** Avanza tick a tick con `step`, aplicando las órdenes del registro en su tick. */
-function stepwise(state: SimState, log: OrderLog, until: number): void {
+/** Ningún número fuera de los enteros seguros y ningún almacén fuera de [0, capacidad]. */
+function checkInvariants(state: SimState, c: CompiledContent): void {
+  assertAllIntegers(state);
+  for (const e of Object.values(state.elements)) {
+    for (const [r, level] of Object.entries(e.store ?? {})) {
+      expect(level, `${e.id}.${r}`).toBeGreaterThanOrEqual(0);
+      expect(level, `${e.id}.${r}`).toBeLessThanOrEqual(capacityOf(c, e, r));
+    }
+  }
+  for (const a of Object.values(state.actors)) {
+    for (const v of Object.values(a.stocks)) expect(v).toBeGreaterThanOrEqual(0);
+  }
+}
+
+/**
+ * Avanza tick a tick con `step`, aplicando las órdenes del registro en su tick. Comprueba los
+ * invariantes cada `every` ticks y devuelve los eventos.
+ */
+function stepwise(
+  state: SimState,
+  log: OrderLog,
+  until: number,
+  c: CompiledContent = content,
+  every = 1,
+): Event[] {
+  const events: Event[] = [];
   let i = 0;
   while (state.tick < until) {
     while (i < log.length && log[i]!.tick < state.tick) i++;
     const batch: Order[] = [];
     while (i < log.length && log[i]!.tick === state.tick) batch.push(log[i++]!);
-    step(state, batch, content);
-    assertAllIntegers(state);
+    for (const e of step(state, batch, c)) events.push(e);
+    if (state.tick % every === 0) checkInvariants(state, c);
+  }
+  checkInvariants(state, c);
+  return events;
+}
+
+/** Avanza con `advance` en tramos de longitud al azar (sembrada): cada corte es un salto distinto. */
+function chunked(state: SimState, log: OrderLog, until: number, c: CompiledContent, seedHex: string): void {
+  let r: RngState = seed(seedHex, 7);
+  while (state.tick < until) {
+    const [n, next] = nextInt(r, 2_000);
+    r = next;
+    advance(state, log, Math.min(until, state.tick + 1 + n), c);
   }
 }
 
@@ -70,19 +114,23 @@ function viewer(params: SceneParams): string {
 
 describe('fixtures dorados', () => {
   for (const { file, fixture } of loadFixtures()) {
-    it(`${fixture.name}: step, advance y replay dan los mismos hashes`, () => {
+    const c = testContentNamed(fixture.content);
+    it(`${fixture.name}: step, advance, advance troceado y replay dan los mismos hashes`, () => {
       const actor = viewer(fixture.params);
       const log = [...fixture.orders].sort((a, b) => (a.tick !== b.tick ? a.tick - b.tick : a.seq - b.seq));
-      const byStep = createScene(fixture.params, content);
-      const byAdvance = createScene(fixture.params, content);
+      const byStep = createScene(fixture.params, c);
+      const byAdvance = createScene(fixture.params, c);
+      const byChunks = createScene(fixture.params, c);
       const computed: Checkpoint[] = [];
       for (const cp of fixture.checkpoints) {
-        stepwise(byStep, log, cp.tick);
-        advance(byAdvance, log, cp.tick, content);
-        const byReplay = replay(fixture.params, log, cp.tick, content);
+        stepwise(byStep, log, cp.tick, c);
+        advance(byAdvance, log, cp.tick, c);
+        chunked(byChunks, log, cp.tick, c, fixture.params.seed);
+        const byReplay = replay(fixture.params, log, cp.tick, c);
         const hash = hashState(byStep);
         expect(byStep.tick).toBe(cp.tick);
         expect(hashState(byAdvance)).toBe(hash);
+        expect(hashState(byChunks)).toBe(hash);
         expect(hashState(byReplay)).toBe(hash);
         const vh = hashState(byStep, { actor });
         expect(hashState(byAdvance, { actor })).toBe(vh);
@@ -102,7 +150,7 @@ describe('fixtures dorados', () => {
     });
 
     it(`${fixture.name}: la serialización conserva el hash y el estado es JSON de enteros`, () => {
-      const s = replay(fixture.params, fixture.orders, fixture.checkpoints.at(-1)!.tick, content);
+      const s = replay(fixture.params, fixture.orders, fixture.checkpoints.at(-1)!.tick, c);
       const text = serialize(s);
       const back = deserialize(text) as SimState;
       expect(hashOf(back)).toBe(hashState(s));
@@ -112,7 +160,7 @@ describe('fixtures dorados', () => {
     });
 
     it(`${fixture.name}: la vista no contiene lo oculto ni el generador`, () => {
-      const s = replay(fixture.params, fixture.orders, fixture.checkpoints.at(-1)!.tick, content);
+      const s = replay(fixture.params, fixture.orders, fixture.checkpoints.at(-1)!.tick, c);
       const v = view(s, viewer(fixture.params)) as unknown as Record<string, unknown>;
       expect(v.hidden).toBeUndefined();
       expect(v.rng).toBeUndefined();
@@ -124,16 +172,18 @@ describe('fixtures dorados', () => {
 
 describe('aislamiento', () => {
   it('dos instancias del módulo dan el mismo hash: no hay estado de módulo', async () => {
-    const { fixture } = loadFixtures()[0]!;
-    const until = fixture.checkpoints.at(-1)!.tick;
-    vi.resetModules();
-    const a = await import('../src/index.js');
-    const ha = a.hashState(a.replay(fixture.params, fixture.orders, until, content));
-    vi.resetModules();
-    const b = await import('../src/index.js');
-    const hb = b.hashState(b.replay(fixture.params, fixture.orders, until, content));
-    expect(a).not.toBe(b);
-    expect(hb).toBe(ha);
+    for (const { fixture } of loadFixtures()) {
+      const c = testContentNamed(fixture.content);
+      const until = fixture.checkpoints.at(-1)!.tick;
+      vi.resetModules();
+      const a = await import('../src/index.js');
+      const ha = a.hashState(a.replay(fixture.params, fixture.orders, until, c));
+      vi.resetModules();
+      const b = await import('../src/index.js');
+      const hb = b.hashState(b.replay(fixture.params, fixture.orders, until, c));
+      expect(a).not.toBe(b);
+      expect(hb).toBe(ha);
+    }
   });
 });
 
@@ -237,5 +287,161 @@ describe('fuzz', () => {
     }
     for (const e of Object.values(va.elements)) expect(s.map.sectors[e.sector]!.plot).not.toBe('p2');
     expect((va.actors.b as { stocks?: unknown }).stocks).toBeUndefined();
+  });
+});
+
+describe('rápido = lento con los flujos de F1', () => {
+  const c1 = testContentF1();
+  const params: SceneParams = {
+    kind: 'district',
+    template: 'f1_dos',
+    seed: 'f1f1000000f1f100',
+    actors: [
+      { id: 'a', plot: 'p1' },
+      { id: 'b', plot: 'p2' },
+    ],
+  };
+  const TASKS = ['sacar_agua', 'recoger', 'talar', 'picar', 'limpiar', 'volar'];
+  const LINKS = ['cable', 'canal', 'camino', 'tubo'];
+  const BUILDS = ['taller', 'cobertizo', 'bomba', 'castillo'];
+  const LAT = { hexW: 86_602, hexH: 75_000 };
+
+  /**
+   * Registro adaptativo y sembrado: en cada tick elegido se sortean varias intenciones de todos
+   * los tipos contra el estado vivo y se prefieren las válidas, sin dejar de meter inválidas.
+   * Así el registro construye, cablea, enciende, contrata y entrega de verdad.
+   */
+  function generate(seedHex: string, ticks: number): OrderLog {
+    const live = createScene(params, c1);
+    let r: RngState = seed(seedHex, 0);
+    const draw = (n: number): number => {
+      const [v, next] = nextInt(r, n);
+      r = next;
+      return v;
+    };
+    const pick = <T>(list: readonly T[]): T => list[draw(list.length)]!;
+    const log: OrderLog = [];
+    let seq = 0;
+    for (let tick = 0; tick < ticks; tick += 1 + draw(150)) {
+      advance(live, log, tick, c1);
+      for (let k = 1 + draw(3); k > 0; k--) {
+        const actor = draw(10) === 0 ? pick(['sys', 'nadie']) : pick(['a', 'b']);
+        const own = (id: string): boolean => live.elements[id]?.owner === actor;
+        const elements = Object.keys(live.elements).sort();
+        const mine = elements.filter(own);
+        const mobiles = [
+          ...Object.keys(live.mobiles)
+            .filter((m) => live.mobiles[m]!.owner === actor)
+            .sort(),
+          'm9',
+        ];
+        const anyElement = (): string =>
+          mine.length > 0 && draw(4) !== 0 ? pick(mine) : pick([...elements, 'e99']);
+        const plot = live.actors[actor]?.plot ?? 'p1';
+        const sectors = Object.keys(live.map.sectors)
+          .filter((h) => live.map.sectors[h]!.plot === plot)
+          .sort();
+        const candidate = (): OrderIntent => {
+          const kind: OrderKind = pick([
+            'move',
+            'reveal',
+            'build',
+            'build',
+            'link',
+            'link',
+            'job',
+            'job',
+            'job',
+            'toggle',
+            'hire',
+            'deliver',
+            'deliver',
+            'credit',
+          ] as const);
+          switch (kind) {
+            case 'move':
+              return { actor, kind, args: { mobile: pick(mobiles), to: anyElement() } };
+            case 'reveal':
+              return { actor, kind, args: { mobile: pick(mobiles), hex: pick([...sectors, '3,-1', '9,9']) } };
+            case 'build': {
+              const h = parse(pick(sectors));
+              const c = center(h, LAT);
+              const pos = { x: c.x + draw(60_001) - 30_000, y: c.y + draw(60_001) - 30_000 };
+              return { actor, kind, args: { mobile: pick(mobiles), kind: pick(BUILDS), pos } };
+            }
+            case 'link':
+              return {
+                actor,
+                kind,
+                args: { mobile: pick(mobiles), kind: pick(LINKS), from: anyElement(), to: anyElement() },
+              };
+            case 'job':
+              return {
+                actor,
+                kind,
+                args: { mobile: pick(mobiles), element: anyElement(), task: pick(TASKS) },
+              };
+            case 'toggle':
+              return { actor, kind, args: { element: anyElement(), on: draw(3) !== 0 } };
+            case 'hire':
+              return { actor, kind, args: { kind: pick(['obrero_peon', 'obrero_peon', 'obrero_jefe']) } };
+            case 'deliver': {
+              const id = live.district.board?.encargo?.id ?? 1;
+              return { actor, kind, args: { mobile: pick(mobiles), encargo: draw(5) === 0 ? id + 1 : id } };
+            }
+            default:
+              return {
+                actor: 'sys',
+                kind: draw(2) === 0 ? 'credit' : 'debit',
+                args: {
+                  actor: pick(['a', 'b']),
+                  resource: pick(['eagles', 'comida', 'madera', 'energia']),
+                  amount: 1 + draw(20),
+                  ref: 'fuzz',
+                },
+              };
+          }
+        };
+        let intent = candidate();
+        for (let tries = 0; tries < 12 && validate(live, intent, c1) !== null && draw(5) !== 0; tries++) {
+          intent = candidate();
+        }
+        log.push({ seq: ++seq, tick, ...intent });
+      }
+    }
+    return log;
+  }
+
+  function accepted(log: OrderLog, events: Event[]): Record<string, number> {
+    const rejected = new Set(events.flatMap((e) => (e.kind === 'rejected' ? [e.seq] : [])));
+    const out: Record<string, number> = {};
+    for (const o of log) if (!rejected.has(o.seq)) out[o.kind] = (out[o.kind] ?? 0) + 1;
+    return out;
+  }
+
+  it('tick a tick, de una vez, a trozos y repetido dan el mismo estado durante cuatro días', () => {
+    const totals: Record<string, number> = {};
+    for (const s of ['01', '02', '03']) {
+      const until = 24_000;
+      const log = generate(s, until);
+      const live = createScene(params, c1);
+      const fast = createScene(params, c1);
+      const parts = createScene(params, c1);
+      const events: Event[] = [];
+      for (const t of [3_000, 7_500, 12_000, 18_000, until]) {
+        events.push(...stepwise(live, log, t, c1, 997));
+        advance(fast, log, t, c1);
+        chunked(parts, log, t, c1, s);
+        expect(hashState(fast), `advance en ${t} (semilla ${s})`).toBe(hashState(live));
+        expect(hashState(parts), `advance troceado en ${t} (semilla ${s})`).toBe(hashState(live));
+        for (const actor of ['a', 'b']) expect(hashState(fast, { actor })).toBe(hashState(live, { actor }));
+      }
+      expect(hashState(replay(params, log, until, c1))).toBe(hashState(live));
+      for (const [k, n] of Object.entries(accepted(log, events))) totals[k] = (totals[k] ?? 0) + n;
+    }
+    // Algo tiene que haber pasado de verdad: cada orden de F1 se ha aceptado alguna vez.
+    for (const k of ['build', 'link', 'job', 'toggle', 'hire', 'deliver', 'reveal', 'move']) {
+      expect(totals[k] ?? 0, `órdenes ${k} aceptadas`).toBeGreaterThan(0);
+    }
   });
 });

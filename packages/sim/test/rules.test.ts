@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { light } from '../src/calendar.js';
+import { light, nextLightChange } from '../src/calendar.js';
 import { center, keyOf, parse } from '../src/hex.js';
 import { arrivalTick, positionOf } from '../src/rules/movement.js';
 import { validate } from '../src/rules/orders.js';
@@ -272,18 +272,25 @@ describe('órdenes del sistema', () => {
 });
 
 describe('calendario', () => {
-  it('la luz sigue la curva de la tabla y envuelve el ciclo', () => {
+  it('la luz es escalonada: cada punto rige hasta el siguiente y el último envuelve el ciclo', () => {
     const s = createScene(solo, content);
     expect(light(s, content, 0)).toBe(0);
     expect(light(s, content, 216_000)).toBe(0);
-    expect(light(s, content, 243_000)).toBe(500);
+    expect(light(s, content, 269_999)).toBe(0);
     expect(light(s, content, 270_000)).toBe(1000);
     expect(light(s, content, 400_000)).toBe(1000);
-    expect(light(s, content, 621_000)).toBe(500);
+    expect(light(s, content, 647_999)).toBe(1000);
     expect(light(s, content, 648_000)).toBe(0);
     expect(light(s, content, 800_000)).toBe(0);
-    expect(light(s, content, 864_000 + 243_000)).toBe(500);
-    const shifted = createScene({ ...solo, dayOffset: 243_000 }, content);
-    expect(light(shifted, content, 0)).toBe(500);
+    expect(light(s, content, 864_000 + 270_000)).toBe(1000);
+    const shifted = createScene({ ...solo, dayOffset: 300_000 }, content);
+    expect(light(shifted, content, 0)).toBe(1000);
+  });
+
+  it('el próximo cambio de luz salta los puntos que no cambian el valor', () => {
+    const s = createScene(solo, content);
+    expect(nextLightChange(s, content, 0)).toBe(270_000);
+    expect(nextLightChange(s, content, 270_000)).toBe(648_000);
+    expect(nextLightChange(s, content, 700_000)).toBe(864_000 + 270_000);
   });
 });

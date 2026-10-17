@@ -5,8 +5,9 @@
  * tick no se borra: queda en el registro y produce el evento `rejected`.
  */
 
+import type { Vec } from '../geom.js';
 import type { HexKey } from '../hex.js';
-import type { ActorId, ElementId, Int, MobileId, ResourceId, Tick } from './ids.js';
+import type { ActorId, ElementId, Int, KindId, MobileId, ResourceId, Tick } from './ids.js';
 
 export interface OrderArgs {
   // ---- del jugador (F0) ----
@@ -14,20 +15,46 @@ export interface OrderArgs {
   move: { mobile: MobileId; to: ElementId };
   /** Manda un obrero a abrir un sector oculto adyacente a uno abierto; cuesta energía y tiempo. */
   reveal: { mobile: MobileId; hex: HexKey };
+  // ---- del jugador (F1) ----
+  /** Manda un obrero a levantar un edificio en un punto de un sector abierto propio. */
+  build: { mobile: MobileId; kind: KindId; pos: Vec };
+  /** Manda un obrero a tender un nexo (cable, canal, camino) entre dos elementos propios. */
+  link: { mobile: MobileId; kind: KindId; from: ElementId; to: ElementId };
+  /** Manda un obrero a hacer una tarea sobre un elemento (sacar agua, recoger, limpiar…). */
+  job: { mobile: MobileId; element: ElementId; task: KindId };
+  /** Enciende o apaga un elemento conmutable; no necesita obrero. */
+  toggle: { element: ElementId; on: boolean };
+  /** Contrata un obrero si hay cama libre; llega al amanecer. */
+  hire: { kind: KindId };
+  /** Manda un obrero a cumplir (en parte) el encargo de la pizarra del común. */
+  deliver: { mobile: MobileId; encargo: Int };
   // ---- del sistema (formato fijado ya; uso desde F2) ----
   /** Puesta al día más allá del tope: el tick salta sin producir. */
   skip: { ticks: Int };
   /** Cambio de tablas en caliente. */
   content: { hash: string };
-  /** Apunte del libro u otra escena: entra en los stocks del actor. */
+  /** Apunte del libro u otra escena: entra en las existencias del actor. */
   credit: { actor: ActorId; resource: ResourceId; amount: Int; ref: string };
-  /** Apunte del libro u otra escena: sale de los stocks del actor. */
+  /** Apunte del libro u otra escena: sale de las existencias del actor. */
   debit: { actor: ActorId; resource: ResourceId; amount: Int; ref: string };
 }
 
 export type OrderKind = keyof OrderArgs;
 
-export const ORDER_KINDS: readonly OrderKind[] = ['move', 'reveal', 'skip', 'content', 'credit', 'debit'];
+export const ORDER_KINDS: readonly OrderKind[] = [
+  'move',
+  'reveal',
+  'build',
+  'link',
+  'job',
+  'toggle',
+  'hire',
+  'deliver',
+  'skip',
+  'content',
+  'credit',
+  'debit',
+];
 
 /** Órdenes que solo puede emitir el sistema. */
 export const SYSTEM_ORDER_KINDS: readonly OrderKind[] = ['skip', 'content', 'credit', 'debit'];
@@ -57,6 +84,7 @@ export type OrderLog = Order[];
 export type Reject =
   | 'too_late'
   | 'unknown_kind'
+  | 'bad_args'
   | 'not_system'
   | 'unknown_actor'
   | 'unknown_mobile'
@@ -70,7 +98,27 @@ export type Reject =
   | 'not_adjacent'
   | 'bad_amount'
   | 'content_mismatch'
-  | `insufficient:${ResourceId}`;
+  // F1
+  | 'dark'
+  | 'not_buildable'
+  | 'bad_position'
+  | 'too_close'
+  | 'not_near'
+  | 'not_linkable'
+  | 'already_linked'
+  | 'too_long'
+  | 'not_switchable'
+  | 'no_supply'
+  | 'unchanged'
+  | 'unknown_task'
+  | 'wrong_element'
+  | 'nothing_to_do'
+  | 'not_hireable'
+  | 'no_bed'
+  | 'no_encargo'
+  | 'encargo_done'
+  | `insufficient:${ResourceId}`
+  | `full:${ResourceId}`;
 
 export function compareOrders(a: Order, b: Order): number {
   return a.tick !== b.tick ? a.tick - b.tick : a.seq - b.seq;

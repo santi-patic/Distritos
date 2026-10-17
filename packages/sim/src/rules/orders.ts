@@ -4,19 +4,28 @@
  * `validate` es la misma función en cliente y servidor: precomprueba una intención contra el
  * estado actual. `apply` vuelve a validar en el tick de ejecución (el estado puede haber
  * cambiado) y, si la orden ya no vale, la deja en el registro con el evento `rejected`.
+ * Cada mecánica valida y ejecuta en su módulo; aquí solo se reparte.
  */
 
 import { canEnter } from '../access.js';
 import { center, parse } from '../hex.js';
-import { get } from '../iter.js';
+import { get, sortedKeys } from '../iter.js';
 import type { CompiledContent } from '../types/content.js';
 import type { Event } from '../types/events.js';
-import { SYSTEM_ACTOR } from '../types/ids.js';
+import { SYSTEM_ACTOR, type ActorId } from '../types/ids.js';
 import type { Order, OrderArgs, OrderIntent, OrderKind, Reject } from '../types/orders.js';
 import { ORDER_KINDS, SYSTEM_ORDER_KINDS } from '../types/orders.js';
-import type { Mobile, SimState } from '../types/state.js';
+import type { SimState } from '../types/state.js';
+import { isBool, isRecord, isStr } from './args.js';
+import { startDeliver, validateDeliver } from './board.js';
+import { startBuild, validateBuild } from './build.js';
 import { hasRevealedNeighbor } from './fog.js';
+import { available, pay, put, take } from './inventory.js';
+import { startLink, validateLink } from './links.js';
 import { startTrip } from './movement.js';
+import { startJob, validateJob } from './tasks.js';
+import { baseWork, markStarted, ownFreeMobile, ownMobile, planWork } from './work.js';
+import { startHire, validateHire } from './workers.js';
 
 /** Efectos de una orden sobre el bucle del paso (no sobre el estado). */
 export interface StepEffects {
@@ -24,14 +33,7 @@ export interface StepEffects {
   skip: number;
 }
 
-function ownMobile(state: SimState, actor: string, id: string): Mobile | Reject {
-  const m = state.mobiles[id];
-  if (m === undefined) return 'unknown_mobile';
-  if (m.owner !== actor) return 'not_owner';
-  return m;
-}
-
-function validateMove(state: SimState, actor: string, args: OrderArgs['move']): Reject | null {
+function validateMove(state: SimState, actor: ActorId, args: OrderArgs['move']): Reject | null {
   const m = ownMobile(state, actor, args.mobile);
   if (typeof m === 'string') return m;
   if (m.job !== null) return 'busy';
@@ -44,35 +46,70 @@ function validateMove(state: SimState, actor: string, args: OrderArgs['move']): 
   return null;
 }
 
+function latticeOf(state: SimState): { hexW: number; hexH: number } {
+  return { hexW: state.scene.hexW, hexH: state.scene.hexH };
+}
+
 function validateReveal(
   state: SimState,
-  actor: string,
+  actor: ActorId,
   args: OrderArgs['reveal'],
   content: CompiledContent,
 ): Reject | null {
-  const m = ownMobile(state, actor, args.mobile);
+  const m = ownFreeMobile(state, actor, args.mobile);
   if (typeof m === 'string') return m;
-  if (m.job !== null) return 'busy';
   const sector = state.map.sectors[args.hex];
   if (sector === undefined) return 'off_map';
   if (sector.status !== 'hidden') return 'not_hidden';
   if (!canEnter(state, actor, sector)) return 'no_access';
   if (!hasRevealedNeighbor(state, args.hex)) return 'not_adjacent';
   const cost = content.actions.reveal;
-  const stock = state.actors[actor]?.stocks[cost.resource] ?? 0;
-  if (stock < cost.cost) return `insufficient:${cost.resource}`;
+  if (available(state, content, actor, cost.resource) < cost.cost) return `insufficient:${cost.resource}`;
+  const target = center(parse(args.hex), latticeOf(state));
+  if (planWork(state, content, m, target, null, baseWork(state, actor, 'reveal', cost)) === null)
+    return 'dark';
+  return null;
+}
+
+function supplied(state: SimState, content: CompiledContent, element: string): boolean {
+  const e = state.elements[element];
+  const consume = e === undefined ? undefined : content.elements[e.kind]?.consume;
+  if (consume === undefined) return true;
+  for (const id of sortedKeys(state.links)) {
+    const l = state.links[id];
+    if (l?.to === element && content.links?.[l.kind]?.carries === consume.resource) return true;
+  }
+  return false;
+}
+
+function validateToggle(
+  state: SimState,
+  content: CompiledContent,
+  actor: ActorId,
+  args: unknown,
+): Reject | null {
+  if (!isRecord(args) || !isStr(args.element) || !isBool(args.on)) return 'bad_args';
+  const e = state.elements[args.element];
+  if (e === undefined) return 'unknown_element';
+  if (e.owner !== actor) return 'not_owner';
+  if (content.elements[e.kind]?.switchable !== true) return 'not_switchable';
+  if ((e.on === true) === args.on) return 'unchanged';
+  if (args.on && !supplied(state, content, e.id)) return 'no_supply';
   return null;
 }
 
 function validateLedger(
   state: SimState,
+  content: CompiledContent,
   args: OrderArgs['credit'] | OrderArgs['debit'],
   debit: boolean,
 ): Reject | null {
   const a = state.actors[args.actor];
   if (a === undefined) return 'unknown_actor';
   if (!Number.isSafeInteger(args.amount) || args.amount <= 0) return 'bad_amount';
-  if (debit && (a.stocks[args.resource] ?? 0) < args.amount) return `insufficient:${args.resource}`;
+  if (debit && available(state, content, args.actor, args.resource) < args.amount) {
+    return `insufficient:${args.resource}`;
+  }
   return null;
 }
 
@@ -86,11 +123,24 @@ export function validate(state: SimState, intent: OrderIntent, content: Compiled
   const system = SYSTEM_ORDER_KINDS.includes(intent.kind);
   if (system && intent.actor !== SYSTEM_ACTOR) return 'not_system';
   if (!system && state.actors[intent.actor] === undefined) return 'unknown_actor';
+  if (!isRecord(intent.args)) return 'bad_args';
   switch (intent.kind) {
     case 'move':
       return validateMove(state, intent.actor, intent.args as OrderArgs['move']);
     case 'reveal':
       return validateReveal(state, intent.actor, intent.args as OrderArgs['reveal'], content);
+    case 'build':
+      return validateBuild(state, content, intent.actor, intent.args);
+    case 'link':
+      return validateLink(state, content, intent.actor, intent.args);
+    case 'job':
+      return validateJob(state, content, intent.actor, intent.args);
+    case 'toggle':
+      return validateToggle(state, content, intent.actor, intent.args);
+    case 'hire':
+      return validateHire(state, content, intent.actor, intent.args);
+    case 'deliver':
+      return validateDeliver(state, content, intent.actor, intent.args);
     case 'skip': {
       const { ticks } = intent.args as OrderArgs['skip'];
       return Number.isSafeInteger(ticks) && ticks > 0 ? null : 'bad_amount';
@@ -98,9 +148,9 @@ export function validate(state: SimState, intent: OrderIntent, content: Compiled
     case 'content':
       return (intent.args as OrderArgs['content']).hash === content.hash ? null : 'content_mismatch';
     case 'credit':
-      return validateLedger(state, intent.args as OrderArgs['credit'], false);
+      return validateLedger(state, content, intent.args as OrderArgs['credit'], false);
     case 'debit':
-      return validateLedger(state, intent.args as OrderArgs['debit'], true);
+      return validateLedger(state, content, intent.args as OrderArgs['debit'], true);
   }
 }
 
@@ -116,7 +166,7 @@ function execute(
       const args = order.args as OrderArgs['move'];
       const m = get(state.mobiles, args.mobile, 'móvil');
       const e = get(state.elements, args.to, 'elemento');
-      const trip = startTrip(state, m, e.pos, e.id, order.seq);
+      const trip = startTrip(state, content, m, e.pos, e.id, order.seq);
       events.push({ tick: state.tick, kind: 'trip_started', mobile: m.id, arriveTick: trip.arriveTick });
       return;
     }
@@ -124,27 +174,38 @@ function execute(
       const args = order.args as OrderArgs['reveal'];
       const m = get(state.mobiles, args.mobile, 'móvil');
       const cost = content.actions.reveal;
-      const actor = get(state.actors, order.actor, 'actor');
-      actor.stocks[cost.resource] = (actor.stocks[cost.resource] ?? 0) - cost.cost;
-      events.push({
-        tick: state.tick,
-        kind: 'stock',
-        actor: order.actor,
-        resource: cost.resource,
-        delta: -cost.cost,
-        reason: 'reveal',
-      });
-      const target = center(parse(args.hex), { hexW: state.scene.hexW, hexH: state.scene.hexH });
-      const trip = startTrip(state, m, target, null, order.seq);
-      m.job = {
-        kind: 'reveal',
-        hex: args.hex,
-        startTick: trip.arriveTick,
-        endTick: trip.arriveTick + cost.ticks,
-      };
+      const target = center(parse(args.hex), latticeOf(state));
+      const plan = planWork(state, content, m, target, null, baseWork(state, order.actor, 'reveal', cost));
+      if (plan === null) throw new Error('abrir: sin luz (debió rechazarse)');
+      pay(state, content, order.actor, { [cost.resource]: cost.cost }, events, 'reveal');
+      markStarted(state, order.actor, 'reveal', cost);
+      const trip = startTrip(state, content, m, target, null, order.seq);
+      m.job = { kind: 'reveal', hex: args.hex, startTick: plan.arrive, endTick: plan.end };
       events.push({ tick: state.tick, kind: 'trip_started', mobile: m.id, arriveTick: trip.arriveTick });
       return;
     }
+    case 'build':
+      startBuild(state, content, order, events);
+      return;
+    case 'link':
+      startLink(state, content, order, events);
+      return;
+    case 'job':
+      startJob(state, content, order, events);
+      return;
+    case 'toggle': {
+      const args = order.args as OrderArgs['toggle'];
+      const e = get(state.elements, args.element, 'elemento');
+      e.on = args.on;
+      events.push({ tick: state.tick, kind: 'switched', element: e.id, on: args.on, reason: 'order' });
+      return;
+    }
+    case 'hire':
+      startHire(state, content, order, events);
+      return;
+    case 'deliver':
+      startDeliver(state, content, order, events);
+      return;
     case 'skip': {
       const { ticks } = order.args as OrderArgs['skip'];
       effects.skip += ticks;
@@ -157,20 +218,14 @@ function execute(
       events.push({ tick: state.tick, kind: 'content_changed', hash });
       return;
     }
-    case 'credit':
-    case 'debit': {
+    case 'credit': {
       const args = order.args as OrderArgs['credit'];
-      const actor = get(state.actors, args.actor, 'actor');
-      const delta = order.kind === 'credit' ? args.amount : -args.amount;
-      actor.stocks[args.resource] = (actor.stocks[args.resource] ?? 0) + delta;
-      events.push({
-        tick: state.tick,
-        kind: 'stock',
-        actor: args.actor,
-        resource: args.resource,
-        delta,
-        reason: args.ref,
-      });
+      put(state, content, args.actor, args.resource, args.amount, events, args.ref);
+      return;
+    }
+    case 'debit': {
+      const args = order.args as OrderArgs['debit'];
+      take(state, content, args.actor, args.resource, args.amount, events, args.ref);
       return;
     }
   }

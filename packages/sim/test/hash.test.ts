@@ -102,3 +102,15 @@ describe('serialización', () => {
     }).toThrow(/\$\.a\[0\]\.b\.c/);
   });
 });
+
+describe('versión de las reglas', () => {
+  it('RULES_VERSION es la versión del paquete: entra en el hash de cada estado', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { RULES_VERSION } = await import('../src/version.js');
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')) as {
+      version: string;
+    };
+    expect(RULES_VERSION).toBe(pkg.version);
+  });
+});

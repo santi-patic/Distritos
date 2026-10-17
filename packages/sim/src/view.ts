@@ -4,7 +4,8 @@
  * Función pura del estado y del actor. Contiene los sectores que el actor puede ver (los de
  * su terreno, la tierra común, los ajenos concedidos) con sus elementos y móviles; los demás
  * sectores aparecen como desconocidos; los terrenos ajenos, resumidos; los actores ajenos,
- * sin stocks. Nunca contiene `hidden`, `rng` ni los contadores.
+ * sin stocks; los nexos con algún extremo visible. Nunca contiene `hidden`, `rng` ni los
+ * contadores. La pizarra del común va entera: es pública.
  */
 
 import { canSee } from './access.js';
@@ -16,6 +17,7 @@ import type {
   ActorState,
   DistrictState,
   Element,
+  Link,
   Mobile,
   Plot,
   SceneHeader,
@@ -44,6 +46,8 @@ export interface PublicState {
   plots: Record<PlotId, Plot>;
   map: { sectors: Record<HexKey, Sector | UnknownSector> };
   elements: Record<string, Element>;
+  /** Nexos con algún extremo visible. */
+  links: Record<string, Link>;
   mobiles: Record<string, Mobile>;
   actors: Record<ActorId, ActorState | ActorSummary>;
   district: DistrictState;
@@ -65,6 +69,10 @@ export function view(state: SimState, viewer: ActorId): PublicState {
   for (const [id, e] of entries(state.elements)) {
     if (visible[e.sector] === true) elements[id] = e;
   }
+  const links: Record<string, Link> = {};
+  for (const [id, l] of entries(state.links)) {
+    if (elements[l.from] !== undefined || elements[l.to] !== undefined) links[id] = l;
+  }
   const mobiles: Record<string, Mobile> = {};
   for (const [id, m] of entries(state.mobiles)) {
     if (m.owner === viewer || visible[key(nearest(positionOf(m, state.tick), lat))] === true) mobiles[id] = m;
@@ -81,6 +89,7 @@ export function view(state: SimState, viewer: ActorId): PublicState {
     plots: state.plots,
     map: { sectors },
     elements,
+    links,
     mobiles,
     actors,
     district: state.district,

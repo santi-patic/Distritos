@@ -1,20 +1,26 @@
 /**
  * El paso de tick, el avance por saltos y la repetición. Esquema del paquete sim, §5.4 y §10.
  *
- *   step: órdenes del tick por seq → llegadas → fin de tareas → [F1 tasas] → tick + 1
+ *   step: órdenes por seq → llegadas → fin de tareas → contratados que llegan → [paso diario]
+ *         → los que no han comido comen → tasas (apagados y un tick de flujos) → tick + 1
  *
  * `step` muta el estado que recibe y devuelve los eventos; quien necesite conservar un estado
- * lo clona antes. `advance` salta los tramos en los que no hay nada que hacer: en F0, hasta
- * la próxima orden, llegada o fin de tarea; F1 añade las tasas con fórmula cerrada y la
- * prueba «rápido = lento».
+ * lo clona antes. `advance` salta los tramos en los que no hay nada que hacer: acumula los
+ * flujos de todo el tramo con fórmula cerrada (igual que tick a tick, lo exige la batería
+ * «rápido = lento») y ejecuta `step` en el siguiente tick con algo: una orden, una llegada, un
+ * fin de tarea, una contratación, el paso diario o un cambio de tasas.
  */
 
 import { min } from './arith.js';
+import { isDailyTick, nextDailyTick } from './calendar.js';
 import { at } from './iter.js';
 import { createScene, type SceneParams } from './scene.js';
+import { dailyStep } from './rules/daily.js';
+import { flowsJump, flowsStep, nextFlowEvent } from './rules/flows.js';
 import { processJobs, nextJobEnd } from './rules/jobs.js';
 import { nextArrival, processArrivals } from './rules/movement.js';
 import { apply, type StepEffects } from './rules/orders.js';
+import { feedHungry, nextHire, processHires } from './rules/workers.js';
 import type { CompiledContent } from './types/content.js';
 import type { Event } from './types/events.js';
 import type { Tick } from './types/ids.js';
@@ -28,18 +34,28 @@ export function step(state: SimState, orders: readonly Order[], content: Compile
   const sorted = [...orders].sort(compareOrders);
   for (const o of sorted) apply(state, o, content, events, effects);
   processArrivals(state, events);
-  processJobs(state, events);
+  processJobs(state, content, events);
+  processHires(state, content, events);
+  if (isDailyTick(state, content)) dailyStep(state, content, events);
+  feedHungry(state, content, events);
+  flowsStep(state, content, events);
   state.tick += 1 + effects.skip;
   return events;
 }
 
+function earliest(a: Tick | null, b: Tick | null): Tick | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return min(a, b);
+}
+
 /** Próximo tick ≥ el actual con algo que hacer sin contar las órdenes, o null si no hay nada. */
-export function nextEventTick(state: SimState): Tick | null {
-  const a = nextArrival(state);
-  const j = nextJobEnd(state);
-  if (a === null) return j;
-  if (j === null) return a;
-  return min(a, j);
+export function nextEventTick(state: SimState, content: CompiledContent): Tick | null {
+  let next = earliest(nextArrival(state), nextJobEnd(state));
+  next = earliest(next, nextHire(state));
+  next = earliest(next, nextDailyTick(state, content, state.tick));
+  next = earliest(next, nextFlowEvent(state, content));
+  return next;
 }
 
 /**
@@ -54,12 +70,13 @@ export function advance(state: SimState, log: OrderLog, until: Tick, content: Co
     // Órdenes anteriores al tick actual (ya aplicadas, o caídas dentro de un `skip`): se ignoran.
     while (i < log.length && at(log, i).tick < state.tick) i++;
     const nextOrder = i < log.length ? at(log, i).tick : null;
-    const nextEvent = nextEventTick(state);
+    const nextEvent = nextEventTick(state, content);
     let target = until;
     if (nextOrder !== null && nextOrder < target) target = nextOrder;
     if (nextEvent !== null && nextEvent < target) target = nextEvent;
     if (target > state.tick) {
-      // Tramo sin nada que hacer: salto. (F1: aquí se acumulan las tasas en bloque.)
+      // Tramo sin nada que hacer: los flujos se acumulan en bloque y el tick salta.
+      flowsJump(state, content, target - state.tick);
       state.tick = target;
       if (state.tick >= until) break;
     }

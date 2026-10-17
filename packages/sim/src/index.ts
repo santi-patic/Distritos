@@ -37,9 +37,28 @@ export { validate } from './rules/orders.js';
 export { step, advance, replay, nextEventTick } from './step.js';
 export { view } from './view.js';
 export type { PublicState, UnknownSector, ActorSummary } from './view.js';
-export { positionOf, arrivalTick } from './rules/movement.js';
-export { light, phaseAt } from './calendar.js';
+export { positionOf, arrivalTick, tripSpeed, plannedArrival } from './rules/movement.js';
+export {
+  light,
+  phaseAt,
+  nextLightChange,
+  workable,
+  workEnd,
+  nextWorkStart,
+  isDailyTick,
+  nextDailyTick,
+} from './calendar.js';
 export { canSee, canEnter, PLOT_ACCESS, COMMON_ACCESS } from './access.js';
+
+// Lecturas de F1 para la interfaz: almacenes, flujos, existencias, camas, tareas.
+export { resolveFlows, rateDen } from './rules/flows.js';
+export type { Flows, StoreFlow } from './rules/flows.js';
+export { available, room, isPhysical } from './rules/inventory.js';
+export { capacityOf, levelOf } from './rules/elements.js';
+export { bedsOf, workersOf } from './rules/workers.js';
+export { taskVariant } from './rules/tasks.js';
+export { flowRoles } from './rules/links.js';
+export { planWork, effectiveWork, baseWork } from './rules/work.js';
 
 import { hashOf } from './hash.js';
 import type { ActorId } from './types/ids.js';

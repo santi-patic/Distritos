@@ -7,15 +7,27 @@
  * la plantilla, sectores por (q, r).
  */
 
-import { assertInt, fdiv } from './arith.js';
+import { assertInt, fdiv, min } from './arith.js';
 import { COMMON_ACCESS, PLOT_ACCESS, copyAccess } from './access.js';
 import { add, type Vec } from './geom.js';
 import { assertLattice, center, key, keyOf, nearest, parse, range, type Hex, type Lattice } from './hex.js';
-import { at, get, removeKey } from './iter.js';
+import { at, get, removeKey, sortedKeys } from './iter.js';
 import { nextInt, pickWeighted, seed, type RngState } from './rng.js';
-import type { Archetype, CompiledContent, Template, Weighted } from './types/content.js';
+import { initBoard } from './rules/board.js';
+import { addElement, capacityOf, setLevel } from './rules/elements.js';
+import { assertFlowContent } from './rules/flows.js';
+import { addLink } from './rules/links.js';
+import type {
+  Archetype,
+  CommonElement,
+  CompiledContent,
+  StartElement,
+  Template,
+  Weighted,
+} from './types/content.js';
 import { NOTHING } from './types/content.js';
 import type { ActorId, Int, KindId, PlotId } from './types/ids.js';
+import { SYSTEM_ACTOR } from './types/ids.js';
 import type { Character, Element, Mobile, Plot, SceneKind, SectorContent, SimState } from './types/state.js';
 import { STATE_VERSION } from './types/state.js';
 import { RULES_VERSION } from './version.js';
@@ -97,9 +109,18 @@ function generateSector(
   state.rng = rng;
 }
 
-function newElementId(state: SimState): string {
-  state.counters.element += 1;
-  return `e${state.counters.element}`;
+/** Existencias iniciales y encendido de un elemento de la dotación (F1). */
+function stock(content: CompiledContent, element: Element, spec: StartElement): void {
+  if (spec.store !== undefined) {
+    for (const r of sortedKeys(spec.store)) {
+      if (element.store?.[r] === undefined) throw new Error(`contenido: ${element.kind} no almacena ${r}`);
+      setLevel(element, r, min(spec.store[r] ?? 0, capacityOf(content, element, r)));
+    }
+  }
+  if (spec.on !== undefined) {
+    if (element.on === undefined) throw new Error(`contenido: ${element.kind} no se enciende`);
+    element.on = spec.on;
+  }
 }
 
 function newMobileId(state: SimState): string {
@@ -139,6 +160,7 @@ function occupy(state: SimState, actor: SceneActorParams, content: CompiledConte
 
   const origin = center(anchorHex, lat);
   let home: Element | null = null;
+  const placed: Element[] = [];
   for (const e of kit.elements) {
     need(content.elements, e.kind, 'elemento');
     const pos = add(origin, { x: e.dx, y: e.dy });
@@ -146,18 +168,19 @@ function occupy(state: SimState, actor: SceneActorParams, content: CompiledConte
     if (key(at) !== plot.anchor) {
       throw new Error(`contenido: el elemento inicial ${e.kind} cae fuera del sector central`);
     }
-    const element: Element = {
-      id: newElementId(state),
-      kind: e.kind,
-      pos,
-      sector: plot.anchor,
-      level: 1,
-      owner: actor.id,
-    };
-    state.elements[element.id] = element;
+    const element = addElement(state, content, { kind: e.kind, pos, sector: plot.anchor, owner: actor.id });
+    stock(content, element, e);
+    placed.push(element);
     home ??= element;
   }
   if (home === null) throw new Error('contenido: la dotación inicial no tiene elementos');
+  // La finca empieza cableada (F1).
+  for (const l of kit.links ?? []) {
+    const a = placed[l.a];
+    const b = placed[l.b];
+    if (a === undefined || b === undefined) throw new Error(`contenido: nexo inicial fuera de la dotación`);
+    addLink(state, content, l.kind, a, b);
+  }
 
   let rng = state.rng;
   for (const m of kit.mobiles) {
@@ -191,6 +214,7 @@ export function createScene(params: SceneParams, content: CompiledContent): SimS
   const table = content.scenes[params.kind];
   const lat: Lattice = { hexW: table.hexW, hexH: table.hexH };
   assertLattice(lat);
+  assertFlowContent(content, table.tickMs);
   if (!/^[0-9a-f]{1,64}$/.test(params.seed))
     throw new Error('escena: la semilla es hexadecimal en minúsculas');
 
@@ -243,6 +267,40 @@ export function createScene(params: SceneParams, content: CompiledContent): SimS
   }
 
   for (const actor of params.actors) occupy(state, actor, content, lat);
+  if (template.common !== null) placeCommon(state, template.common.elements ?? [], content, lat);
+  initBoard(state, content);
 
   return state;
+}
+
+/**
+ * Elementos fijos de la tierra común (F1: el punto de carga y el almacén del común mínimo).
+ * Su sector queda abierto por el distrito; lo que la semilla hubiera puesto allí se descarta.
+ */
+function placeCommon(
+  state: SimState,
+  elements: readonly CommonElement[],
+  content: CompiledContent,
+  lat: Lattice,
+): void {
+  for (const c of elements) {
+    need(content.elements, c.kind, 'elemento');
+    const k = keyOf(c.hex.q, c.hex.r);
+    const sector = state.map.sectors[k];
+    if (sector?.plot !== null) {
+      throw new Error(`plantilla: el elemento común ${c.kind} no está en tierra común`);
+    }
+    const pos = add(center(c.hex, lat), { x: c.dx, y: c.dy });
+    if (key(nearest(pos, lat)) !== k)
+      throw new Error(`plantilla: el elemento común ${c.kind} cae fuera de su sector`);
+    if (sector.status === 'hidden') {
+      const hidden = state.hidden.sectorContents[k];
+      sector.status = 'revealed';
+      sector.revealedBy = SYSTEM_ACTOR;
+      sector.revealedTick = state.tick;
+      if (hidden !== undefined) sector.terrain = hidden.terrain;
+      removeKey(state.hidden.sectorContents, k);
+    }
+    addElement(state, content, { kind: c.kind, pos, sector: k });
+  }
 }

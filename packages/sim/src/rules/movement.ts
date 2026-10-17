@@ -6,10 +6,11 @@
  * ni se desvía» es estructural.
  */
 
-import { ceilDiv, max, mul } from '../arith.js';
+import { ceilDiv, fdiv, max, mul } from '../arith.js';
 import { dist, lerpVec, type Vec } from '../geom.js';
 import { sortedKeys } from '../iter.js';
-import type { ElementId, Int, Tick } from '../types/ids.js';
+import type { CompiledContent } from '../types/content.js';
+import type { ElementId, Int, MmPerS, Tick } from '../types/ids.js';
 import type { Event } from '../types/events.js';
 import type { Mobile, SimState, Trip } from '../types/state.js';
 
@@ -29,15 +30,67 @@ export function arrivalTick(from: Vec, to: Vec, speedMmPerS: Int, tickMs: Int, n
   return now + max(1, ceilDiv(mul(d, 1000), mul(speedMmPerS, tickMs)));
 }
 
+/**
+ * Velocidad de un viaje: la del móvil, o la del camino si sale de un elemento unido al destino
+ * por un nexo con velocidad propia (F1). Movimiento lineal: solo cuenta el camino directo.
+ */
+export function tripSpeed(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  toElement: ElementId | null,
+): MmPerS {
+  const base = m.stats.speed;
+  if (m.where.kind !== 'at' || m.where.element === null || toElement === null) return base;
+  const a = m.where.element;
+  let best = base;
+  for (const id of sortedKeys(state.links)) {
+    const link = state.links[id];
+    if (link === undefined) continue;
+    const joins = (link.from === a && link.to === toElement) || (link.from === toElement && link.to === a);
+    if (!joins) continue;
+    const permille = content.links?.[link.kind]?.speedPermille;
+    if (permille === undefined) continue;
+    const v = fdiv(mul(base, permille), 1000);
+    if (v > best) best = v;
+  }
+  return best;
+}
+
+/** Tick de llegada de un viaje que saliera ahora, sin lanzarlo. */
+export function plannedArrival(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  to: Vec,
+  toElement: ElementId | null,
+): Tick {
+  const speed = tripSpeed(state, content, m, toElement);
+  return arrivalTick(positionOf(m, state.tick), to, speed, state.scene.tickMs, state.tick);
+}
+
 /** Lanza un viaje desde la posición actual del móvil. Si ya viajaba, el nuevo parte de donde está ahora. */
-export function startTrip(state: SimState, m: Mobile, to: Vec, toElement: ElementId | null, seq: Int): Trip {
+export function startTrip(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  to: Vec,
+  toElement: ElementId | null,
+  seq: Int,
+): Trip {
   const from = positionOf(m, state.tick);
   const trip: Trip = {
     from,
     to,
     toElement,
     departTick: state.tick,
-    arriveTick: arrivalTick(from, to, m.stats.speed, state.scene.tickMs, state.tick),
+    arriveTick: arrivalTick(
+      from,
+      to,
+      tripSpeed(state, content, m, toElement),
+      state.scene.tickMs,
+      state.tick,
+    ),
     seq,
   };
   m.where = { kind: 'trip', trip };

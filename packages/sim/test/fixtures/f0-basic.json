@@ -160,28 +160,28 @@
   "checkpoints": [
     {
       "tick": 1,
-      "hash": "a93a78301520e28a20e715e0749b61df8985aee2ece2afb52c95de8f2ff9c809",
-      "view": "70434f53b2300c853bc78824b93d2b3715209b0461284bb317808943a0e38208"
+      "hash": "33dde6807727d13c29ed536b972155beb65d7626a83a8cb74c07a7d638cb71ea",
+      "view": "10ce56c918a38fc69fa172c68220d3f486a0d79eab4e35a1137c459e89951f3a"
     },
     {
       "tick": 50,
-      "hash": "56857dd8e85150864c533ba57adddcab03ec2564a86bfac32ef90f07ed6e0cb4",
-      "view": "e1e0e3ebb7835b2a375c738d8bf9b911f7447d28cfdf89ceefd2566bae5a9be7"
+      "hash": "f46fcf3a5caf59c432074c90dffaee49f7218e4e3b0c3743e85da66081c93487",
+      "view": "d9071d2641d40c93b7f6f591bf5b9d3ec46bd2ca6b109d27935e3fee85bc1861"
     },
     {
       "tick": 300,
-      "hash": "6d3c58235a3c7303262c8670baada9ed9c289ee4e764350aa38cbfdb29bd66ad",
-      "view": "ffc52a15f662571e7c6ff5c6f3036263eb7174c6bf7bf623e42379ec4a9ec195"
+      "hash": "6741940eb0045fb61130c22005276d9a185e0b0ec1d8edbebc63d4cfdc94bb49",
+      "view": "35c27ceb5b669b4b2a794344b2c9b53fb187b601b6b0b20b23182e052df6ca49"
     },
     {
       "tick": 500,
-      "hash": "b3a0cbd63edcfe05d3353fe6ba1cf8821259e2ca54c4b16dd216272f6bfb2efd",
-      "view": "c6cd562f84076a040b48a300b25a79fb3f8f98f4a901f02681805899ac2932d4"
+      "hash": "f71bf8083500cef83950d6b2b0109583bd52b7d404da70366c4a9d1f1b3daf97",
+      "view": "12e31a5f4e70b25d712c81a63f52d3e4d2a80caf94bf63c9c9339562544293c6"
     },
     {
       "tick": 6500,
-      "hash": "c98e37e8f8b72c5eb15641af4cdd55bad0dc023762446f78b8422b7468788713",
-      "view": "7c85f2ce08986e291d46cdec2c47185b9f59651d808745e4c6c09ba5935e40ff"
+      "hash": "2135f674d52eacdf1e1131030649123d17e696fce587cc8233723535e2df63d8",
+      "view": "4409d0323e798e776dfb3cc262930e0c13cec3c31466284449c280828067ba54"
     }
   ]
 }

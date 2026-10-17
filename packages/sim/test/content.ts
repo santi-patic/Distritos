@@ -11,7 +11,23 @@ import type { CompiledContent } from '../src/types/content.js';
 
 export const TEST_CONTENT_PATH = join(import.meta.dirname, 'content.json');
 
-export function testContent(): CompiledContent {
-  const tables = JSON.parse(readFileSync(TEST_CONTENT_PATH, 'utf8')) as Omit<CompiledContent, 'hash'>;
+/** Contenido de prueba de F1: la casa con almacenes, flujos y pizarra, con un día de 10 minutos. */
+export const TEST_CONTENT_F1_PATH = join(import.meta.dirname, 'content-f1.json');
+
+function load(path: string): CompiledContent {
+  const tables = JSON.parse(readFileSync(path, 'utf8')) as Omit<CompiledContent, 'hash'>;
   return { hash: hashOf(tables), ...tables };
+}
+
+export function testContent(): CompiledContent {
+  return load(TEST_CONTENT_PATH);
+}
+
+export function testContentF1(): CompiledContent {
+  return load(TEST_CONTENT_F1_PATH);
+}
+
+/** El contenido de prueba por nombre de fichero, como lo indican los fixtures. */
+export function testContentNamed(file: string | undefined): CompiledContent {
+  return load(join(import.meta.dirname, file ?? 'content.json'));
 }

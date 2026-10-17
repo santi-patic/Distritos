@@ -1,0 +1,691 @@
+{
+  "actions": {
+    "reveal": {
+      "cost": 20000,
+      "firstTicks": 30,
+      "resource": "energia",
+      "ticks": 300
+    }
+  },
+  "archetypes": {
+    "comun": {
+      "finds": {
+        "bosque": [
+          {
+            "kind": "madera",
+            "weight": 1
+          }
+        ],
+        "prado": [
+          {
+            "kind": "nada",
+            "weight": 1
+          }
+        ]
+      },
+      "start": {
+        "elements": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "kind": "casa"
+          }
+        ],
+        "mobiles": [],
+        "stocks": {},
+        "terrain": "prado"
+      },
+      "terrains": [
+        {
+          "kind": "prado",
+          "weight": 2
+        },
+        {
+          "kind": "bosque",
+          "weight": 1
+        }
+      ],
+      "tier": 0
+    },
+    "finca": {
+      "finds": {
+        "agua": [
+          {
+            "kind": "manantial",
+            "weight": 2
+          },
+          {
+            "kind": "salto",
+            "weight": 1
+          }
+        ],
+        "bosque": [
+          {
+            "kind": "madera",
+            "weight": 4
+          },
+          {
+            "kind": "nada",
+            "weight": 1
+          }
+        ],
+        "cantera": [
+          {
+            "kind": "piedra",
+            "weight": 1
+          }
+        ],
+        "prado": [
+          {
+            "kind": "nada",
+            "weight": 3
+          },
+          {
+            "kind": "colina",
+            "weight": 1
+          },
+          {
+            "kind": "paso",
+            "weight": 1
+          }
+        ]
+      },
+      "start": {
+        "elements": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "kind": "casa",
+            "store": {
+              "comida": 6,
+              "madera": 10,
+              "piedra": 5
+            }
+          },
+          {
+            "dx": -20000,
+            "dy": -18000,
+            "kind": "panel"
+          },
+          {
+            "dx": -30000,
+            "dy": 2000,
+            "kind": "panel"
+          },
+          {
+            "dx": -14000,
+            "dy": 20000,
+            "kind": "bateria",
+            "store": {
+              "energia": 30000
+            }
+          },
+          {
+            "dx": 22000,
+            "dy": 16000,
+            "kind": "pozo",
+            "store": {
+              "agua": 150
+            }
+          },
+          {
+            "dx": 24000,
+            "dy": -14000,
+            "kind": "huerta"
+          }
+        ],
+        "links": [
+          {
+            "a": 1,
+            "b": 3,
+            "kind": "cable"
+          },
+          {
+            "a": 2,
+            "b": 3,
+            "kind": "cable"
+          },
+          {
+            "a": 3,
+            "b": 0,
+            "kind": "cable"
+          },
+          {
+            "a": 4,
+            "b": 5,
+            "kind": "canal"
+          }
+        ],
+        "mobiles": [
+          {
+            "kind": "obrero_peon"
+          },
+          {
+            "kind": "obrero_tecnico"
+          }
+        ],
+        "stocks": {
+          "eagles": 20
+        },
+        "terrain": "prado"
+      },
+      "terrains": [
+        {
+          "kind": "prado",
+          "weight": 4
+        },
+        {
+          "kind": "bosque",
+          "weight": 3
+        },
+        {
+          "kind": "agua",
+          "weight": 2
+        },
+        {
+          "kind": "cantera",
+          "weight": 2
+        }
+      ],
+      "tier": 1
+    }
+  },
+  "board": {
+    "currency": "eagles",
+    "encargos": [
+      {
+        "amount": 40000,
+        "at": "punto_carga",
+        "id": "energia_carga",
+        "perTrip": 20000,
+        "resource": "energia",
+        "reward": 10
+      },
+      {
+        "amount": 4,
+        "at": "almacen_comun",
+        "id": "raciones_almacen",
+        "perTrip": 2,
+        "resource": "comida",
+        "reward": 8
+      },
+      {
+        "amount": 400,
+        "at": "almacen_comun",
+        "id": "obra_comun",
+        "perTrip": 200,
+        "resource": "trabajo",
+        "reward": 12,
+        "work": true
+      }
+    ]
+  },
+  "builds": {
+    "bomba": {
+      "cost": {
+        "eagles": 5,
+        "piedra": 2
+      },
+      "gapMm": 8000,
+      "near": {
+        "hexes": 1,
+        "kinds": ["manantial", "pozo"]
+      },
+      "ticks": 600
+    },
+    "cobertizo": {
+      "cost": {
+        "madera": 5
+      },
+      "firstTicks": 100,
+      "gapMm": 8000,
+      "ticks": 600
+    },
+    "taller": {
+      "cost": {
+        "eagles": 10,
+        "madera": 5
+      },
+      "gapMm": 8000,
+      "ticks": 800
+    }
+  },
+  "elements": {
+    "almacen_comun": {
+      "category": "fixed",
+      "stores": {
+        "comida": 1000
+      }
+    },
+    "bateria": {
+      "category": "fixed",
+      "cycles": {
+        "lossPermille": 50
+      },
+      "inventory": true,
+      "stores": {
+        "energia": 600000
+      }
+    },
+    "bomba": {
+      "category": "fixed",
+      "consume": {
+        "perDay": 21600000,
+        "resource": "energia"
+      },
+      "produce": {
+        "perDay": 1728000,
+        "resource": "agua",
+        "to": "self"
+      },
+      "stores": {
+        "agua": 3000
+      },
+      "switchable": true
+    },
+    "casa": {
+      "beds": 2,
+      "category": "fixed",
+      "consume": {
+        "perDay": 12960000,
+        "resource": "energia"
+      },
+      "inventory": true,
+      "stores": {
+        "comida": 30,
+        "madera": 10,
+        "piedra": 10
+      }
+    },
+    "cobertizo": {
+      "beds": 2,
+      "category": "fixed",
+      "inventory": true,
+      "stores": {
+        "madera": 50,
+        "piedra": 50
+      }
+    },
+    "colina": {
+      "category": "site"
+    },
+    "huerta": {
+      "category": "fixed",
+      "consume": {
+        "perDay": 86400,
+        "resource": "agua"
+      },
+      "produce": {
+        "perDay": 432,
+        "resource": "comida",
+        "to": "self"
+      },
+      "stores": {
+        "comida": 6
+      }
+    },
+    "madera": {
+      "category": "resource"
+    },
+    "manantial": {
+      "category": "resource"
+    },
+    "panel": {
+      "category": "fixed",
+      "produce": {
+        "light": true,
+        "perDay": 34560000,
+        "resource": "energia",
+        "to": "link",
+        "wear": true
+      },
+      "soil": {
+        "max": 500,
+        "perDay": 100
+      }
+    },
+    "paso": {
+      "category": "site"
+    },
+    "piedra": {
+      "category": "resource"
+    },
+    "pozo": {
+      "category": "fixed",
+      "stores": {
+        "agua": 400
+      }
+    },
+    "punto_carga": {
+      "category": "fixed",
+      "stores": {
+        "energia": 10000000
+      }
+    },
+    "salto": {
+      "category": "site"
+    },
+    "taller": {
+      "category": "fixed"
+    }
+  },
+  "hires": {
+    "obrero_peon": {
+      "cost": {
+        "comida": 3,
+        "eagles": 5
+      }
+    }
+  },
+  "links": {
+    "cable": {
+      "carries": "energia",
+      "maxMm": 200000,
+      "ticksPerUnit": 50,
+      "unitMm": 50000
+    },
+    "camino": {
+      "costPerUnit": {
+        "piedra": 1
+      },
+      "speedPermille": 2000,
+      "ticksPerUnit": 100,
+      "unitMm": 50000
+    },
+    "canal": {
+      "carries": "agua",
+      "ticksPerUnit": 100,
+      "unitMm": 50000
+    }
+  },
+  "mobiles": {
+    "obrero_peon": {
+      "eats": {
+        "perDay": 1,
+        "resource": "comida"
+      },
+      "hungryPermille": 500,
+      "names": ["Antía", "Breixo", "Xiana", "Roi"],
+      "stats": {
+        "alert": 1,
+        "force": 1,
+        "speed": 20000,
+        "vision": 2
+      }
+    },
+    "obrero_tecnico": {
+      "eats": {
+        "perDay": 1,
+        "resource": "comida"
+      },
+      "hungryPermille": 500,
+      "names": ["Iria", "Xoán"],
+      "stats": {
+        "alert": 2,
+        "force": 1,
+        "speed": 15000,
+        "vision": 3
+      }
+    }
+  },
+  "resources": {
+    "agua": {
+      "order": 2,
+      "physical": true
+    },
+    "comida": {
+      "order": 3,
+      "physical": true
+    },
+    "eagles": {
+      "order": 9,
+      "physical": false
+    },
+    "energia": {
+      "order": 1,
+      "physical": true
+    },
+    "madera": {
+      "order": 4,
+      "physical": true
+    },
+    "piedra": {
+      "order": 5,
+      "physical": true
+    }
+  },
+  "scenes": {
+    "charge": {
+      "dayTicks": 3000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 1000],
+        [2400, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    },
+    "dispute": {
+      "dayTicks": 6000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 0],
+        [1500, 200],
+        [1700, 600],
+        [1900, 1000],
+        [4100, 600],
+        [4300, 200],
+        [4500, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    },
+    "district": {
+      "dailyAt": 1200,
+      "dayTicks": 6000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 0],
+        [1500, 200],
+        [1700, 600],
+        [1900, 1000],
+        [4100, 600],
+        [4300, 200],
+        [4500, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100,
+      "workLight": 300
+    },
+    "incursion": {
+      "dayTicks": 9000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 1000],
+        [6000, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    }
+  },
+  "tasks": {
+    "limpiar": {
+      "at": ["panel"],
+      "clean": true,
+      "ticks": 600,
+      "tool": {
+        "cost": {
+          "energia": 20000
+        },
+        "kind": "taller",
+        "ticks": 200
+      }
+    },
+    "picar": {
+      "at": ["piedra"],
+      "gives": {
+        "piedra": 5
+      },
+      "into": "inventory",
+      "ticks": 300
+    },
+    "recoger": {
+      "at": ["huerta"],
+      "collect": "comida",
+      "firstTicks": 10,
+      "ticks": 100
+    },
+    "sacar_agua": {
+      "at": ["pozo"],
+      "firstTicks": 20,
+      "gives": {
+        "agua": 100
+      },
+      "into": "self",
+      "ticks": 200
+    },
+    "talar": {
+      "at": ["madera"],
+      "gives": {
+        "madera": 5
+      },
+      "into": "inventory",
+      "ticks": 300
+    }
+  },
+  "templates": {
+    "f1_dos": {
+      "common": {
+        "archetype": "comun",
+        "elements": [
+          {
+            "dx": -15000,
+            "dy": 0,
+            "hex": {
+              "q": 3,
+              "r": 0
+            },
+            "kind": "punto_carga"
+          },
+          {
+            "dx": 15000,
+            "dy": 0,
+            "hex": {
+              "q": 3,
+              "r": 0
+            },
+            "kind": "almacen_comun"
+          }
+        ],
+        "sectors": [
+          {
+            "q": 3,
+            "r": 0
+          },
+          {
+            "q": 3,
+            "r": -1
+          },
+          {
+            "q": 2,
+            "r": 1
+          }
+        ]
+      },
+      "kind": "district",
+      "plots": [
+        {
+          "anchor": {
+            "q": 0,
+            "r": 0
+          },
+          "archetype": "finca",
+          "id": "p1",
+          "radius": 2
+        },
+        {
+          "anchor": {
+            "q": 6,
+            "r": 0
+          },
+          "archetype": "finca",
+          "id": "p2",
+          "radius": 2
+        }
+      ]
+    },
+    "f1_solo": {
+      "common": {
+        "archetype": "comun",
+        "elements": [
+          {
+            "dx": -15000,
+            "dy": 0,
+            "hex": {
+              "q": 3,
+              "r": 0
+            },
+            "kind": "punto_carga"
+          },
+          {
+            "dx": 15000,
+            "dy": 0,
+            "hex": {
+              "q": 3,
+              "r": 0
+            },
+            "kind": "almacen_comun"
+          }
+        ],
+        "sectors": [
+          {
+            "q": 3,
+            "r": 0
+          },
+          {
+            "q": 3,
+            "r": -1
+          },
+          {
+            "q": 2,
+            "r": 1
+          }
+        ]
+      },
+      "kind": "district",
+      "plots": [
+        {
+          "anchor": {
+            "q": 0,
+            "r": 0
+          },
+          "archetype": "finca",
+          "id": "p1",
+          "radius": 2
+        }
+      ]
+    }
+  },
+  "terrains": {
+    "agua": {
+      "category": "water"
+    },
+    "bosque": {
+      "category": "wood"
+    },
+    "cantera": {
+      "category": "stone"
+    },
+    "prado": {
+      "category": "ground"
+    }
+  }
+}

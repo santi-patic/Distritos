@@ -3,7 +3,8 @@
  *
  * El estado es JSON plano de enteros seguros, cadenas, booleanos y null: se serializa con
  * `serialize`, se hashea con `hashState` y se reconstruye desde el registro de órdenes.
- * Los campos marcados F1–F5 son huecos reservados: existen en el tipo, no en las reglas.
+ * Los campos marcados F2–F5 son huecos reservados: existen en el tipo, no en las reglas. Los de
+ * F1 son opcionales y solo aparecen cuando las tablas definen almacenes, flujos o pizarra.
  */
 
 import type { Vec } from '../geom.js';
@@ -97,13 +98,20 @@ export interface Element {
   sector: HexKey;
   /** El tamaño es el nivel. */
   level: Int;
+  /** Sin dueño: es del distrito (tierra común). */
   owner?: ActorId;
   /** Obras con nombre (F1 en el terreno, F5 en la tierra común). */
   builtBy?: ActorId[];
-  /** Degradación (F1). */
+  /** Degradación (F1): suciedad del panel o capacidad perdida de la batería, en milésimas. */
   wear?: Permille;
-  /** Restos de acumuladores de tasa, por tasa (F1). */
+  /** Existencias de sus almacenes, por recurso (F1). La capacidad está en la tabla. */
+  store?: Record<ResourceId, Int>;
+  /** Restos de los acumuladores de flujo de cada almacén, por recurso (F1). */
   carry?: Record<string, Int>;
+  /** Descarga acumulada desde el último ciclo contado (F1, baterías). */
+  drawn?: Int;
+  /** Encendido (F1, elementos conmutables). */
+  on?: boolean;
 }
 
 export interface Stats {
@@ -127,6 +135,10 @@ export interface Trip {
 
 export type Where = { kind: 'at'; pos: Vec; element: ElementId | null } | { kind: 'trip'; trip: Trip };
 
+/**
+ * Una tarea se fija al dar la orden: empieza al llegar (startTick) y termina en endTick,
+ * calculado saltando los tramos sin luz de trabajo. Su efecto ocurre al terminar.
+ */
 export interface RevealJob {
   kind: 'reveal';
   hex: HexKey;
@@ -134,8 +146,50 @@ export interface RevealJob {
   endTick: Tick;
 }
 
-/** F1: BuildJob | RepairJob | HaulJob. */
-export type Job = RevealJob;
+/** F1. Levantar un edificio en un punto. */
+export interface BuildJob {
+  kind: 'build';
+  what: KindId;
+  pos: Vec;
+  startTick: Tick;
+  endTick: Tick;
+}
+
+/** F1. Tender un nexo entre dos elementos. */
+export interface LinkJob {
+  kind: 'link';
+  what: KindId;
+  from: ElementId;
+  to: ElementId;
+  startTick: Tick;
+  endTick: Tick;
+}
+
+/** F1. Tarea sobre un elemento (sacar agua, recoger, limpiar…). */
+export interface TaskJob {
+  kind: 'task';
+  task: KindId;
+  element: ElementId;
+  startTick: Tick;
+  endTick: Tick;
+}
+
+/** F1. Llevar a la tierra común lo que pide un encargo de la pizarra, o trabajar allí. */
+export interface DeliverJob {
+  kind: 'deliver';
+  encargo: Int;
+  element: ElementId;
+  resource: ResourceId;
+  work: boolean;
+  /** Lo que se entrega: unidades del recurso, o ticks de trabajo si `work`. */
+  amount: Int;
+  /** Lo que se cobra al entregar, fijado al dar la orden. */
+  pay: Int;
+  startTick: Tick;
+  endTick: Tick;
+}
+
+export type Job = RevealJob | BuildJob | LinkJob | TaskJob | DeliverJob;
 
 export interface Mobile {
   id: MobileId;
@@ -146,14 +200,24 @@ export interface Mobile {
   stats: Stats;
   where: Where;
   job: Job | null;
+  /** Lo que lleva encima (F1: la entrega de un encargo). */
+  cargo?: Record<ResourceId, Int>;
+  /** No ha comido hoy (F1): trabaja más despacio. */
+  hungry?: true;
 }
 
+/**
+ * Nexo entre dos elementos. Los que llevan un recurso van en el sentido del flujo: de quien
+ * produce al almacén, o del almacén a quien consume.
+ */
 export interface Link {
   id: LinkId;
   kind: KindId;
   from: ElementId;
   to: ElementId;
   wear?: Permille;
+  /** Obra con nombre (F1). */
+  builtBy?: ActorId[];
 }
 
 /** Lo que viaja entre distritos (F1+); vacío en F0. Copia de la entidad del servidor. */
@@ -166,19 +230,61 @@ export interface Character {
   experience: Int;
 }
 
+/** Obrero contratado que llega en un tick conocido (al amanecer). F1. */
+export interface PendingHire {
+  kind: KindId;
+  tick: Tick;
+  seq: Int;
+}
+
 export interface ActorState {
   plot: PlotId | null;
+  /** Lo que no es físico (Eagles); lo físico vive en los almacenes de los elementos (F1). */
   stocks: Record<ResourceId, Int>;
   /** Parte de los flujos propios que va al común, en milésimas (F5; inerte antes). */
   share: Permille;
   /** Actividad: cualquier orden aceptada del actor. */
   lastOrderTick: Tick;
   character: Character;
+  /** Contrataciones en camino (F1). */
+  hires?: PendingHire[];
+  /** Veces que ha empezado cada tarea con variante de primera vez (F1, entrada fácil). */
+  started?: Record<string, Int>;
+}
+
+/** Encargo publicado en la pizarra del común (F1). */
+export interface Encargo {
+  id: Int;
+  kind: KindId;
+  /** Elemento de la tierra común de destino. */
+  at: ElementId;
+  resource: ResourceId;
+  work: boolean;
+  amount: Int;
+  perTrip: Int;
+  reward: Int;
+  /** Comprometido por entregas en camino o ya hechas. */
+  reserved: Int;
+  delivered: Int;
+  /** Lo entregado por cada actor. */
+  by: Record<ActorId, Int>;
+}
+
+/** La pizarra del común: el encargo del día y lo que cada uno ha entregado siempre (F1). */
+export interface Board {
+  /** Días transcurridos desde la creación de la escena. */
+  day: Int;
+  /** Id del próximo encargo. */
+  next: Int;
+  encargo: Encargo | null;
+  totals: Record<ActorId, Record<ResourceId, Int>>;
 }
 
 /** Lo común; se detalla con el diseño del distrito (F5). */
 export interface DistrictState {
   pot: Record<ResourceId, Int>;
+  /** F1: el común mínimo que lleva el juego hasta F5. */
+  board?: Board;
 }
 
 export interface SectorContent {

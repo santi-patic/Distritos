@@ -18,6 +18,7 @@ interface Checkpoint {
 
 interface Fixture {
   name: string;
+  content?: string;
   params: unknown;
   orders: unknown[];
   contentHash?: string;
@@ -35,16 +36,23 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test('f0-basic (contenido de prueba) da en Chromium los hashes dorados de Node', async ({ page }) => {
-  const fixture = readJson(join(ROOT, 'sim', 'test', 'fixtures', 'f0-basic.json')) as Fixture;
-  const tables = readJson(join(ROOT, 'sim', 'test', 'content.json'));
-  const got = await page.evaluate(
-    (req) =>
-      (window as unknown as { __distritos: { run: (r: unknown) => Checkpoint[] } }).__distritos.run(req),
-    { params: fixture.params, orders: fixture.orders, ticks: fixture.checkpoints.map((c) => c.tick), tables },
-  );
-  expect(got).toEqual(fixture.checkpoints);
-});
+for (const name of ['f0-basic', 'f1-basic']) {
+  test(`${name} (contenido de prueba) da en Chromium los hashes dorados de Node`, async ({ page }) => {
+    const fixture = readJson(join(ROOT, 'sim', 'test', 'fixtures', `${name}.json`)) as Fixture;
+    const tables = readJson(join(ROOT, 'sim', 'test', fixture.content ?? 'content.json'));
+    const got = await page.evaluate(
+      (req) =>
+        (window as unknown as { __distritos: { run: (r: unknown) => Checkpoint[] } }).__distritos.run(req),
+      {
+        params: fixture.params,
+        orders: fixture.orders,
+        ticks: fixture.checkpoints.map((c) => c.tick),
+        tables,
+      },
+    );
+    expect(got).toEqual(fixture.checkpoints);
+  });
+}
 
 test('f0-real (tablas del repositorio) da en Chromium los hashes dorados de Node', async ({ page }) => {
   const fixture = readJson(join(ROOT, 'content', 'test', 'fixtures', 'f0-real.json')) as Fixture;

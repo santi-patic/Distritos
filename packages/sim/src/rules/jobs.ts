@@ -2,19 +2,24 @@
  * Tareas de los móviles. Esquema del paquete sim, §8.3 y §10.
  *
  * Una tarea se fija al dar la orden con ticks absolutos: empieza al llegar (startTick) y
- * termina en endTick. Al completarse produce su efecto (abrir un sector, en F0) y el móvil
- * queda libre.
+ * termina en endTick, calculado saltando los tramos sin luz de trabajo. Al completarse
+ * produce su efecto y el móvil queda libre.
  */
 
 import { max } from '../arith.js';
 import { sortedKeys } from '../iter.js';
+import type { CompiledContent } from '../types/content.js';
 import type { Event } from '../types/events.js';
 import type { Tick } from '../types/ids.js';
 import type { SimState } from '../types/state.js';
+import { completeDelivery } from './board.js';
+import { completeBuild } from './build.js';
 import { revealSector } from './fog.js';
+import { completeLink } from './links.js';
+import { completeTask } from './tasks.js';
 
 /** Tareas que terminan en este tick, por id ordenado. */
-export function processJobs(state: SimState, events: Event[]): void {
+export function processJobs(state: SimState, content: CompiledContent, events: Event[]): void {
   for (const id of sortedKeys(state.mobiles)) {
     const m = state.mobiles[id];
     if (m === undefined || m.job === null) continue;
@@ -22,7 +27,19 @@ export function processJobs(state: SimState, events: Event[]): void {
     const job = m.job;
     switch (job.kind) {
       case 'reveal':
-        revealSector(state, job.hex, m.owner, events);
+        revealSector(state, content, job.hex, m.owner, events);
+        break;
+      case 'build':
+        completeBuild(state, content, m, job, events);
+        break;
+      case 'link':
+        completeLink(state, content, m, job, events);
+        break;
+      case 'task':
+        completeTask(state, content, m, job, events);
+        break;
+      case 'deliver':
+        completeDelivery(state, content, m, job, events);
         break;
     }
     m.job = null;
