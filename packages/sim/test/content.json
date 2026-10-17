@@ -1,0 +1,331 @@
+{
+  "actions": {
+    "reveal": {
+      "cost": 360000,
+      "resource": "energia",
+      "ticks": 50
+    }
+  },
+  "archetypes": {
+    "comun": {
+      "finds": {
+        "bosque": [
+          {
+            "kind": "madera",
+            "weight": 1
+          }
+        ],
+        "prado": [
+          {
+            "kind": "nada",
+            "weight": 1
+          }
+        ]
+      },
+      "start": {
+        "elements": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "kind": "casa"
+          }
+        ],
+        "mobiles": [],
+        "stocks": {},
+        "terrain": "prado"
+      },
+      "terrains": [
+        {
+          "kind": "prado",
+          "weight": 2
+        },
+        {
+          "kind": "bosque",
+          "weight": 1
+        }
+      ],
+      "tier": 0
+    },
+    "prueba": {
+      "finds": {
+        "agua": [
+          {
+            "kind": "manantial",
+            "weight": 2
+          },
+          {
+            "kind": "salto",
+            "weight": 1
+          }
+        ],
+        "bosque": [
+          {
+            "kind": "madera",
+            "weight": 4
+          },
+          {
+            "kind": "nada",
+            "weight": 1
+          }
+        ],
+        "cantera": [
+          {
+            "kind": "piedra",
+            "weight": 1
+          }
+        ],
+        "prado": [
+          {
+            "kind": "nada",
+            "weight": 3
+          },
+          {
+            "kind": "colina",
+            "weight": 1
+          },
+          {
+            "kind": "paso",
+            "weight": 1
+          }
+        ]
+      },
+      "start": {
+        "elements": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "kind": "casa"
+          },
+          {
+            "dx": 12000,
+            "dy": -8000,
+            "kind": "panel"
+          },
+          {
+            "dx": -15000,
+            "dy": 6000,
+            "kind": "pozo"
+          },
+          {
+            "dx": 4000,
+            "dy": 14000,
+            "kind": "huerta"
+          }
+        ],
+        "mobiles": [
+          {
+            "kind": "obrero_peon"
+          }
+        ],
+        "stocks": {
+          "comida": 50,
+          "eagles": 0,
+          "energia": 3600000
+        },
+        "terrain": "prado"
+      },
+      "terrains": [
+        {
+          "kind": "prado",
+          "weight": 5
+        },
+        {
+          "kind": "bosque",
+          "weight": 3
+        },
+        {
+          "kind": "agua",
+          "weight": 1
+        },
+        {
+          "kind": "cantera",
+          "weight": 1
+        }
+      ],
+      "tier": 1
+    }
+  },
+  "elements": {
+    "bateria": {
+      "category": "fixed"
+    },
+    "casa": {
+      "category": "fixed"
+    },
+    "colina": {
+      "category": "site"
+    },
+    "huerta": {
+      "category": "fixed"
+    },
+    "madera": {
+      "category": "resource"
+    },
+    "manantial": {
+      "category": "resource"
+    },
+    "panel": {
+      "category": "fixed"
+    },
+    "paso": {
+      "category": "site"
+    },
+    "piedra": {
+      "category": "resource"
+    },
+    "pozo": {
+      "category": "fixed"
+    },
+    "salto": {
+      "category": "site"
+    }
+  },
+  "mobiles": {
+    "obrero_peon": {
+      "names": ["Antía", "Breixo", "Xiana", "Roi", "Sabela", "Brais"],
+      "stats": {
+        "alert": 1,
+        "force": 1,
+        "speed": 20000,
+        "vision": 2
+      }
+    },
+    "obrero_tecnico": {
+      "names": ["Iria", "Xoán", "Uxía", "Paio"],
+      "stats": {
+        "alert": 2,
+        "force": 1,
+        "speed": 15000,
+        "vision": 3
+      }
+    }
+  },
+  "scenes": {
+    "charge": {
+      "dayTicks": 3000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 1000],
+        [3000, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    },
+    "dispute": {
+      "dayTicks": 864000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 0],
+        [216000, 0],
+        [270000, 1000],
+        [594000, 1000],
+        [648000, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    },
+    "district": {
+      "dayTicks": 864000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 0],
+        [216000, 0],
+        [270000, 1000],
+        [594000, 1000],
+        [648000, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    },
+    "incursion": {
+      "dayTicks": 9000,
+      "hexH": 75000,
+      "hexSizeMm": 50000,
+      "hexW": 86602,
+      "light": [
+        [0, 1000],
+        [6000, 1000],
+        [9000, 0]
+      ],
+      "maxCatchupTicks": 25920000,
+      "tickMs": 100
+    }
+  },
+  "templates": {
+    "f0_dos": {
+      "common": {
+        "archetype": "comun",
+        "sectors": [
+          {
+            "q": 3,
+            "r": 0
+          },
+          {
+            "q": 3,
+            "r": -1
+          },
+          {
+            "q": 2,
+            "r": 1
+          }
+        ]
+      },
+      "kind": "district",
+      "plots": [
+        {
+          "anchor": {
+            "q": 0,
+            "r": 0
+          },
+          "archetype": "prueba",
+          "id": "p1",
+          "radius": 2
+        },
+        {
+          "anchor": {
+            "q": 6,
+            "r": 0
+          },
+          "archetype": "prueba",
+          "id": "p2",
+          "radius": 2
+        }
+      ]
+    },
+    "f0_solo": {
+      "common": null,
+      "kind": "district",
+      "plots": [
+        {
+          "anchor": {
+            "q": 0,
+            "r": 0
+          },
+          "archetype": "prueba",
+          "id": "p1",
+          "radius": 3
+        }
+      ]
+    }
+  },
+  "terrains": {
+    "agua": {
+      "category": "water"
+    },
+    "bosque": {
+      "category": "wood"
+    },
+    "cantera": {
+      "category": "stone"
+    },
+    "prado": {
+      "category": "ground"
+    }
+  }
+}

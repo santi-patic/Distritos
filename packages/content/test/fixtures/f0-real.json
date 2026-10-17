@@ -1,0 +1,139 @@
+{
+  "name": "f0-real",
+  "description": "Las tablas del repositorio: dos obreros abren sectores, uno se redirige, y una orden cae en un salto.",
+  "params": {
+    "kind": "district",
+    "template": "f0_solo",
+    "seed": "abcdef0123456789",
+    "actors": [
+      {
+        "id": "santi",
+        "plot": "p1"
+      }
+    ]
+  },
+  "orders": [
+    {
+      "seq": 1,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "1,0"
+      }
+    },
+    {
+      "seq": 2,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m2",
+        "hex": "0,1"
+      }
+    },
+    {
+      "seq": 3,
+      "tick": 5,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e2"
+      }
+    },
+    {
+      "seq": 4,
+      "tick": 150,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e6"
+      }
+    },
+    {
+      "seq": 5,
+      "tick": 160,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m1",
+        "to": "e5"
+      }
+    },
+    {
+      "seq": 6,
+      "tick": 300,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m2",
+        "hex": "1,1"
+      }
+    },
+    {
+      "seq": 7,
+      "tick": 300,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "-1,1"
+      }
+    },
+    {
+      "seq": 8,
+      "tick": 700,
+      "actor": "sys",
+      "kind": "skip",
+      "args": {
+        "ticks": 2000
+      }
+    },
+    {
+      "seq": 9,
+      "tick": 1000,
+      "actor": "santi",
+      "kind": "move",
+      "args": {
+        "mobile": "m2",
+        "to": "e1"
+      }
+    },
+    {
+      "seq": 10,
+      "tick": 2800,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m2",
+        "hex": "2,0"
+      }
+    }
+  ],
+  "contentHash": "2e8cd2c6a1ec07c0fbade667353c71895bf3fb35c2207df42ac0f1762e13c0ea",
+  "checkpoints": [
+    {
+      "tick": 1,
+      "hash": "206278ac6b94e92b3021959a10b0651f0bce4632c5e2a119cc171da59dc07bcf",
+      "view": "d487b97a16adc21fd944997e458dd3a450fee799abffa58d0a05109939e4b9ae"
+    },
+    {
+      "tick": 200,
+      "hash": "1366baf1ff1090db3945df9080b6521ced595a099eae01b4ed89a34c814019af",
+      "view": "d62cd128482dfe8ab18810f8b1bd4602bd240e71671cdf69826ab256c7747b6d"
+    },
+    {
+      "tick": 600,
+      "hash": "635a8eb9cbf3fca159a7035be552cac36477cde19a117aa4b00e8e300d26e04d",
+      "view": "24f686f5831a483cb8c009ba736e963fc33a7dc7c512b0057b95be761c66a612"
+    },
+    {
+      "tick": 3000,
+      "hash": "6b4c391be86c12b38b36cbb54b14c709586f60aa4a5c3af89d2b91561a2812c4",
+      "view": "19401e736f5c36ebffc236eba06fc78589aece1f50dd1fecc9c523d54a0d7f4f"
+    }
+  ]
+}

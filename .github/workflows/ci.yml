@@ -5,8 +5,8 @@ on:
     branches: [main]
   pull_request:
 
-# La prueba de fuego de F0 en forma automática: la misma batería, con los mismos
-# hashes dorados, tiene que pasar en dos sistemas distintos en cada commit.
+# La prueba de fuego de F0 en forma automática: la misma batería, con los mismos hashes
+# dorados, tiene que pasar en dos sistemas distintos y en dos runtimes (Node y Chromium).
 jobs:
   check:
     name: ${{ matrix.os }}
@@ -28,3 +28,20 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm -F @distritos/client build
+
+  cross-runtime:
+    name: node vs chromium
+    runs-on: ubuntu-latest
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F @distritos/client exec playwright install --with-deps chromium
+      - run: pnpm -F @distritos/client test:e2e
