@@ -1,0 +1,35 @@
+{
+  "casa": {
+    "category": "fixed"
+  },
+  "panel": {
+    "category": "fixed"
+  },
+  "bateria": {
+    "category": "fixed"
+  },
+  "pozo": {
+    "category": "fixed"
+  },
+  "huerta": {
+    "category": "fixed"
+  },
+  "colina": {
+    "category": "site"
+  },
+  "paso": {
+    "category": "site"
+  },
+  "salto": {
+    "category": "site"
+  },
+  "madera": {
+    "category": "resource"
+  },
+  "piedra": {
+    "category": "resource"
+  },
+  "manantial": {
+    "category": "resource"
+  }
+}

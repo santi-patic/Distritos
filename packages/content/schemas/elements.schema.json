@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/elements.schema.json",
+  "title": "Elementos",
+  "type": "object",
+  "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["category"],
+    "properties": { "category": { "enum": ["fixed", "resource", "site"] } }
+  }
+}

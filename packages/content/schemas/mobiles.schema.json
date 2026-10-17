@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/mobiles.schema.json",
+  "title": "Móviles",
+  "type": "object",
+  "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["stats", "names"],
+    "properties": {
+      "stats": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["force", "vision", "alert", "speedMmPerS"],
+        "properties": {
+          "force": { "type": "integer", "minimum": 0 },
+          "vision": { "type": "integer", "minimum": 0 },
+          "alert": { "type": "integer", "minimum": 0 },
+          "speedMmPerS": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "names": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    }
+  }
+}

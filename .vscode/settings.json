@@ -1,0 +1,35 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["packages/content/tables/scenes.json"],
+      "url": "./packages/content/schemas/scenes.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/archetypes.json"],
+      "url": "./packages/content/schemas/archetypes.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/templates.json"],
+      "url": "./packages/content/schemas/templates.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/elements.json"],
+      "url": "./packages/content/schemas/elements.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/mobiles.json"],
+      "url": "./packages/content/schemas/mobiles.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/terrains.json"],
+      "url": "./packages/content/schemas/terrains.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/actions.json"],
+      "url": "./packages/content/schemas/actions.schema.json"
+    }
+  ],
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/scenes.schema.json",
+  "title": "Tablas de escena",
+  "description": "Una entrada por tipo de escena. Duraciones en segundos; longitudes en mm; el compilador convierte a ticks y calcula la retícula entera.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["district", "incursion", "charge", "dispute"],
+  "properties": {
+    "district": { "$ref": "#/definitions/scene" },
+    "incursion": { "$ref": "#/definitions/scene" },
+    "charge": { "$ref": "#/definitions/scene" },
+    "dispute": { "$ref": "#/definitions/scene" }
+  },
+  "definitions": {
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tickMs", "daySeconds", "light", "hexSizeMm", "maxCatchupDays"],
+      "properties": {
+        "tickMs": { "type": "integer", "minimum": 1, "maximum": 60000 },
+        "daySeconds": { "type": "integer", "minimum": 1 },
+        "light": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              { "type": "integer", "minimum": 0 },
+              { "type": "integer", "minimum": 0, "maximum": 1000 }
+            ]
+          }
+        },
+        "hexSizeMm": { "type": "integer", "minimum": 1000 },
+        "maxCatchupDays": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

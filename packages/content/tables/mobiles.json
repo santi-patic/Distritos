@@ -1,0 +1,20 @@
+{
+  "obrero_peon": {
+    "stats": {
+      "force": 1,
+      "vision": 2,
+      "alert": 1,
+      "speedMmPerS": 20000
+    },
+    "names": ["Antía", "Breixo", "Xiana", "Roi", "Sabela", "Brais", "Noa", "Martiño"]
+  },
+  "obrero_tecnico": {
+    "stats": {
+      "force": 1,
+      "vision": 3,
+      "alert": 2,
+      "speedMmPerS": 15000
+    },
+    "names": ["Iria", "Xoán", "Uxía", "Paio", "Lúa", "Anxo"]
+  }
+}

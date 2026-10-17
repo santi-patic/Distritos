@@ -1,0 +1,49 @@
+{
+  "district": {
+    "tickMs": 100,
+    "daySeconds": 86400,
+    "light": [
+      [0, 0],
+      [21600, 0],
+      [27000, 1000],
+      [59400, 1000],
+      [64800, 0]
+    ],
+    "hexSizeMm": 50000,
+    "maxCatchupDays": 30
+  },
+  "incursion": {
+    "tickMs": 100,
+    "daySeconds": 900,
+    "light": [
+      [0, 1000],
+      [600, 1000],
+      [900, 0]
+    ],
+    "hexSizeMm": 50000,
+    "maxCatchupDays": 1
+  },
+  "charge": {
+    "tickMs": 100,
+    "daySeconds": 300,
+    "light": [
+      [0, 1000],
+      [300, 0]
+    ],
+    "hexSizeMm": 50000,
+    "maxCatchupDays": 1
+  },
+  "dispute": {
+    "tickMs": 100,
+    "daySeconds": 86400,
+    "light": [
+      [0, 0],
+      [21600, 0],
+      [27000, 1000],
+      [59400, 1000],
+      [64800, 0]
+    ],
+    "hexSizeMm": 50000,
+    "maxCatchupDays": 30
+  }
+}

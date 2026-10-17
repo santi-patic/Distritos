@@ -1,0 +1,152 @@
+{
+  "finca_prado": {
+    "tier": 1,
+    "terrains": [
+      {
+        "kind": "prado",
+        "weight": 5
+      },
+      {
+        "kind": "bosque",
+        "weight": 3
+      },
+      {
+        "kind": "agua",
+        "weight": 1
+      },
+      {
+        "kind": "cantera",
+        "weight": 1
+      }
+    ],
+    "finds": {
+      "prado": [
+        {
+          "kind": "nada",
+          "weight": 3
+        },
+        {
+          "kind": "colina",
+          "weight": 1
+        },
+        {
+          "kind": "paso",
+          "weight": 1
+        }
+      ],
+      "bosque": [
+        {
+          "kind": "madera",
+          "weight": 4
+        },
+        {
+          "kind": "nada",
+          "weight": 1
+        }
+      ],
+      "agua": [
+        {
+          "kind": "manantial",
+          "weight": 2
+        },
+        {
+          "kind": "salto",
+          "weight": 1
+        }
+      ],
+      "cantera": [
+        {
+          "kind": "piedra",
+          "weight": 1
+        }
+      ]
+    },
+    "start": {
+      "terrain": "prado",
+      "elements": [
+        {
+          "kind": "casa",
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "kind": "panel",
+          "dx": 12000,
+          "dy": -8000
+        },
+        {
+          "kind": "panel",
+          "dx": 18000,
+          "dy": -2000
+        },
+        {
+          "kind": "bateria",
+          "dx": 9000,
+          "dy": 6000
+        },
+        {
+          "kind": "pozo",
+          "dx": -15000,
+          "dy": 6000
+        },
+        {
+          "kind": "huerta",
+          "dx": -4000,
+          "dy": 16000
+        }
+      ],
+      "mobiles": [
+        {
+          "kind": "obrero_peon"
+        },
+        {
+          "kind": "obrero_tecnico"
+        }
+      ],
+      "stocks": {
+        "energia": 3600000,
+        "comida": 50,
+        "eagles": 0
+      }
+    }
+  },
+  "comun": {
+    "tier": 0,
+    "terrains": [
+      {
+        "kind": "prado",
+        "weight": 2
+      },
+      {
+        "kind": "bosque",
+        "weight": 1
+      }
+    ],
+    "finds": {
+      "prado": [
+        {
+          "kind": "nada",
+          "weight": 1
+        }
+      ],
+      "bosque": [
+        {
+          "kind": "madera",
+          "weight": 1
+        }
+      ]
+    },
+    "start": {
+      "terrain": "prado",
+      "elements": [
+        {
+          "kind": "casa",
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "mobiles": [],
+      "stocks": {}
+    }
+  }
+}

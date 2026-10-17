@@ -6,7 +6,17 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "tables",
+    "schemas"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@distritos/sim": "workspace:*",
+    "ajv": "^8.17.1"
   }
 }

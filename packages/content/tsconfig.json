@@ -3,7 +3,8 @@
   "compilerOptions": {
     "types": ["node"],
     "rootDir": ".",
-    "noEmit": true
+    "noEmit": true,
+    "resolveJsonModule": true
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts", "tables/*.json"]
 }

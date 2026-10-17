@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/archetypes.schema.json",
+  "title": "Arquetipos de terreno",
+  "description": "Qué puede haber en un terreno de cada tipo: la semilla decide dónde y cuánto.",
+  "type": "object",
+  "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["tier", "terrains", "finds", "start"],
+    "properties": {
+      "tier": { "type": "integer", "minimum": 0 },
+      "terrains": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "$ref": "common.schema.json#/definitions/weighted" }
+      },
+      "finds": {
+        "type": "object",
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+        "additionalProperties": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/definitions/weighted" }
+        }
+      },
+      "start": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["terrain", "elements", "mobiles", "stocks"],
+        "properties": {
+          "terrain": { "$ref": "common.schema.json#/definitions/kindId" },
+          "elements": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "dx", "dy"],
+              "properties": {
+                "kind": { "$ref": "common.schema.json#/definitions/kindId" },
+                "dx": { "$ref": "common.schema.json#/definitions/int" },
+                "dy": { "$ref": "common.schema.json#/definitions/int" }
+              }
+            }
+          },
+          "mobiles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": { "kind": { "$ref": "common.schema.json#/definitions/kindId" } }
+            }
+          },
+          "stocks": { "$ref": "common.schema.json#/definitions/stocks" }
+        }
+      }
+    }
+  }
+}

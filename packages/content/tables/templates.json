@@ -1,0 +1,17 @@
+{
+  "f0_solo": {
+    "kind": "district",
+    "plots": [
+      {
+        "id": "p1",
+        "archetype": "finca_prado",
+        "anchor": {
+          "q": 0,
+          "r": 0
+        },
+        "radius": 3
+      }
+    ],
+    "common": null
+  }
+}

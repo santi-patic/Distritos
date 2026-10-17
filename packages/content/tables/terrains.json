@@ -1,0 +1,14 @@
+{
+  "prado": {
+    "category": "ground"
+  },
+  "bosque": {
+    "category": "wood"
+  },
+  "agua": {
+    "category": "water"
+  },
+  "cantera": {
+    "category": "stone"
+  }
+}
