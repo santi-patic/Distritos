@@ -20,11 +20,12 @@ import { resolveFlows } from '../src/rules/flows.js';
 import { available } from '../src/rules/inventory.js';
 import { addLink } from '../src/rules/links.js';
 import { positionOf } from '../src/rules/movement.js';
+import { quote } from '../src/rules/quote.js';
 import { validate } from '../src/rules/orders.js';
 import { createScene, type SceneParams } from '../src/scene.js';
 import { advance, nextEventTick, step } from '../src/step.js';
 import type { Event } from '../src/types/events.js';
-import type { Order, OrderArgs, OrderKind } from '../src/types/orders.js';
+import type { Order, OrderArgs, OrderIntent, OrderKind } from '../src/types/orders.js';
 import type { SimState } from '../src/types/state.js';
 import { testContentF1 } from './content.js';
 
@@ -386,6 +387,78 @@ describe('órdenes de F1', () => {
     expect(step).toBeTypeOf('function');
     removeKey(s.links, 'l1');
     expect(s.links.l1).toBeUndefined();
+  });
+});
+
+function paid(events: Event[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const e of events) {
+    if ((e.kind === 'store' || e.kind === 'stock') && e.delta < 0 && e.reason !== 'meal') {
+      out[e.resource] = (out[e.resource] ?? 0) - e.delta;
+    }
+  }
+  return out;
+}
+
+describe('presupuesto', () => {
+  it('lo que promete es lo que pasa si la orden entra en ese tick', () => {
+    const s = scene();
+    run(s, [], 1800);
+    s.actors.santi!.stocks.eagles = 100;
+    s.elements[CASA]!.store!.madera = 10;
+    s.elements[CASA]!.store!.piedra = 10;
+    s.elements[HUERTA]!.store!.comida = 3;
+    s.elements[POZO]!.store!.agua = 0;
+    s.elements[BATERIA]!.store!.energia = 500_000;
+    const encargo = s.district.board!.encargo!.id;
+    const cases: OrderIntent[] = [
+      { actor: 'santi', kind: 'reveal', args: { mobile: 'm1', hex: '1,0' } },
+      {
+        actor: 'santi',
+        kind: 'build',
+        args: { mobile: 'm1', kind: 'cobertizo', pos: { x: 10_000, y: 30_000 } },
+      },
+      { actor: 'santi', kind: 'link', args: { mobile: 'm2', kind: 'camino', from: CASA, to: POZO } },
+      { actor: 'santi', kind: 'job', args: { mobile: 'm2', element: HUERTA, task: 'recoger' } },
+      { actor: 'santi', kind: 'job', args: { mobile: 'm1', element: POZO, task: 'sacar_agua' } },
+      { actor: 'santi', kind: 'job', args: { mobile: 'm1', element: PANEL, task: 'limpiar' } },
+      { actor: 'santi', kind: 'deliver', args: { mobile: 'm1', encargo } },
+      { actor: 'santi', kind: 'move', args: { mobile: 'm1', to: PUNTO } },
+    ];
+    for (const intent of cases) {
+      const q = quote(s, intent, content);
+      expect(q, intent.kind).not.toBeNull();
+      const c = structuredClone(s);
+      const events = advance(c, [{ seq: 1, tick: c.tick, ...intent }], c.tick + 1, content);
+      expect(events.find((e) => e.kind === 'rejected')).toBeUndefined();
+      const m = c.mobiles[(intent.args as { mobile: string }).mobile]!;
+      if (intent.kind !== 'move') expect(m.job?.endTick).toBe(q!.end);
+      if (m.where.kind !== 'trip') throw new Error('debería viajar');
+      expect(m.where.trip.arriveTick).toBe(q!.arrive);
+      expect(paid(events), intent.kind).toEqual(q!.cost);
+      if (intent.kind === 'deliver') {
+        expect(events.find((e) => e.kind === 'store' && e.reason === 'deliver')).toBeDefined();
+        expect(c.mobiles.m1!.job).toMatchObject({ amount: q!.amount, pay: q!.pay });
+      }
+    }
+    expect(
+      quote(
+        s,
+        { actor: 'santi', kind: 'job', args: { mobile: 'm1', element: CASA, task: 'recoger' } },
+        content,
+      ),
+    ).toBeNull();
+    expect(
+      quote(s, { actor: 'santi', kind: 'toggle', args: { element: PANEL, on: true } }, content),
+    ).toBeNull();
+    addElement(s, content, {
+      kind: 'cobertizo',
+      pos: { x: 10_000, y: 30_000 },
+      sector: '0,0',
+      owner: 'santi',
+    });
+    const hire = quote(s, { actor: 'santi', kind: 'hire', args: { kind: 'obrero_peon' } }, content);
+    expect(hire).toMatchObject({ cost: { eagles: 5, comida: 3 }, arrive: 7700 });
   });
 });
 

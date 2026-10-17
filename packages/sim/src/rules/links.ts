@@ -48,18 +48,22 @@ export function flowRoles(
   return null;
 }
 
-/** Tramos de un nexo de esa longitud: al menos uno. */
-function unitsOf(lk: LinkKind, length: Int): Int {
-  return max(1, ceilDiv(length, lk.unitMm));
+export interface LinkSpec {
+  /** Tramos de medida: al menos uno. */
+  units: Int;
+  cost: Record<ResourceId, Int>;
+  work: { ticks: Int; firstTicks?: Int };
 }
 
-function costOf(lk: LinkKind, units: Int): Record<ResourceId, Int> {
-  return addCosts(lk.cost, lk.costPerUnit, units);
-}
-
-function workSpec(lk: LinkKind, units: Int): { ticks: Int; firstTicks?: Int } {
+/** Lo que cuesta y dura tender un nexo de ese tipo entre dos elementos: se cobra por tramos. */
+export function linkSpec(lk: LinkKind, a: Element, b: Element): LinkSpec {
+  const units = max(1, ceilDiv(dist(a.pos, b.pos), lk.unitMm));
   const ticks = mul(units, lk.ticksPerUnit);
-  return lk.firstTicks === undefined ? { ticks } : { ticks, firstTicks: lk.firstTicks };
+  return {
+    units,
+    cost: addCosts(lk.cost, lk.costPerUnit, units),
+    work: lk.firstTicks === undefined ? { ticks } : { ticks, firstTicks: lk.firstTicks },
+  };
 }
 
 /** Ya hay (o se está tendiendo) un nexo de ese tipo entre esos dos elementos. */
@@ -96,12 +100,11 @@ export function validateLink(
   if (a.owner !== actor || b.owner !== actor) return 'not_owner';
   if (lk.carries !== undefined && flowRoles(content, a, b, lk.carries) === null) return 'not_linkable';
   if (alreadyLinked(state, args.kind, a.id, b.id)) return 'already_linked';
-  const length = dist(a.pos, b.pos);
-  if (lk.maxMm !== undefined && length > lk.maxMm) return 'too_long';
-  const units = unitsOf(lk, length);
-  const lack = lacking(state, content, actor, costOf(lk, units));
+  if (lk.maxMm !== undefined && dist(a.pos, b.pos) > lk.maxMm) return 'too_long';
+  const spec = linkSpec(lk, a, b);
+  const lack = lacking(state, content, actor, spec.cost);
   if (lack !== null) return `insufficient:${lack}`;
-  const work = baseWork(state, actor, `link:${args.kind}`, workSpec(lk, units));
+  const work = baseWork(state, actor, `link:${args.kind}`, spec.work);
   if (planWork(state, content, m, a.pos, a.id, work) === null) return 'dark';
   return null;
 }
@@ -112,13 +115,12 @@ export function startLink(state: SimState, content: CompiledContent, order: Orde
   const lk = get(content.links ?? {}, args.kind, 'nexo');
   const a = get(state.elements, args.from, 'elemento');
   const b = get(state.elements, args.to, 'elemento');
-  const units = unitsOf(lk, dist(a.pos, b.pos));
-  const spec = workSpec(lk, units);
+  const spec = linkSpec(lk, a, b);
   const workKey = `link:${args.kind}`;
-  const plan = planWork(state, content, m, a.pos, a.id, baseWork(state, order.actor, workKey, spec));
+  const plan = planWork(state, content, m, a.pos, a.id, baseWork(state, order.actor, workKey, spec.work));
   if (plan === null) throw new Error('nexo: sin luz (debió rechazarse)');
-  pay(state, content, order.actor, costOf(lk, units), events, 'link');
-  markStarted(state, order.actor, workKey, spec);
+  pay(state, content, order.actor, spec.cost, events, 'link');
+  markStarted(state, order.actor, workKey, spec.work);
   const trip = startTrip(state, content, m, a.pos, a.id, order.seq);
   m.job = { kind: 'link', what: args.kind, from: a.id, to: b.id, startTick: plan.arrive, endTick: plan.end };
   events.push({ tick: state.tick, kind: 'trip_started', mobile: m.id, arriveTick: trip.arriveTick });

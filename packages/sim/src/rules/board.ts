@@ -82,6 +82,22 @@ function deliverable(state: SimState, content: CompiledContent, actor: ActorId, 
   return e.work ? left : min(left, available(state, content, actor, e.resource));
 }
 
+/**
+ * Lo que entregaría ahora un obrero del actor y lo que cobraría: la parte de la recompensa que
+ * corresponde a lo entregado, sin perder nada por redondeo entre entregas.
+ */
+export function deliveryQuote(
+  state: SimState,
+  content: CompiledContent,
+  actor: ActorId,
+  e: Encargo,
+): { amount: Int; pay: Int } {
+  const amount = deliverable(state, content, actor, e);
+  if (amount <= 0) return { amount: 0, pay: 0 };
+  const pay = fdiv(mul(e.reward, e.reserved + amount), e.amount) - fdiv(mul(e.reward, e.reserved), e.amount);
+  return { amount, pay };
+}
+
 export function validateDeliver(
   state: SimState,
   content: CompiledContent,
@@ -110,15 +126,13 @@ export function startDeliver(state: SimState, content: CompiledContent, order: O
   const e = state.district.board?.encargo;
   if (e?.id !== args.encargo) throw new Error('entregar: encargo inexistente (debió rechazarse)');
   const dest = get(state.elements, e.at, 'destino');
-  const amount = deliverable(state, content, order.actor, e);
+  const { amount, pay } = deliveryQuote(state, content, order.actor, e);
   const plan = planWork(state, content, m, dest.pos, dest.id, e.work ? amount : 0);
   if (plan === null) throw new Error('entregar: sin luz (debió rechazarse)');
   if (!e.work) {
     take(state, content, order.actor, e.resource, amount, events, 'deliver');
     m.cargo = { [e.resource]: amount };
   }
-  // La parte de la recompensa que paga esta entrega, sin perder nada por redondeo.
-  const pay = fdiv(mul(e.reward, e.reserved + amount), e.amount) - fdiv(mul(e.reward, e.reserved), e.amount);
   e.reserved += amount;
   const trip = startTrip(state, content, m, dest.pos, dest.id, order.seq);
   m.job = {
