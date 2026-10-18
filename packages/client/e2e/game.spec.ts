@@ -193,3 +193,27 @@ test('exportar la partida y cargarla en otro navegador da el mismo hash', async 
   ).toBe(1);
   await other.close();
 });
+
+test('el informe de la prueba repite una partida exportada y la resume por día', async ({ page }) => {
+  await boot(page);
+  await tapOn(page, { sector: '1,0' });
+  await page.locator('[data-action="reveal"]').click();
+  await page.clock.runFor(2000);
+  await page.click('#btn-menu');
+  await page.clock.runFor(200);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('[data-action="export"]')]);
+  const text = readFileSync(await download.path(), 'utf8');
+
+  await page.goto('/informe.html');
+  await page.setInputFiles('#files', {
+    name: 'probador-1.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(text),
+  });
+  const summary = page.locator('#summary');
+  await expect(summary).toContainText('probador-1.json');
+  await expect(summary).toContainText('coincide');
+  await expect(summary).toContainText('1 de 1');
+  await expect(page.locator('#detail')).toContainText('abrir 1');
+  await expect(page.locator('#detail')).toContainText('Europe/Madrid');
+});

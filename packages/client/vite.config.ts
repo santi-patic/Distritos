@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         fixtures: resolve(import.meta.dirname, 'fixtures.html'),
+        informe: resolve(import.meta.dirname, 'informe.html'),
       },
     },
   },

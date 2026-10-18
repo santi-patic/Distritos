@@ -182,6 +182,36 @@ export function parseSave(text: string): SaveData | null {
   return save;
 }
 
+/** Lee una exportación con su comprobación y los datos del aparato; una partida sin ellos, tal cual. */
+export function parseExport(text: string): SaveData | ExportData | null {
+  const save = parseSave(text);
+  if (save === null) return null;
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  const check = raw.check;
+  if (
+    !isObj(check) ||
+    !isInt(check.tick) ||
+    check.tick < 0 ||
+    !isStr(check.hash) ||
+    !isStr(check.contentHash) ||
+    !isStr(check.rules)
+  )
+    return save;
+  const client = isObj(raw.client) ? raw.client : {};
+  const str = (v: unknown): string => (isStr(v) ? v : '');
+  return {
+    ...save,
+    exportedAt: isInt(raw.exportedAt) ? raw.exportedAt : 0,
+    check: { tick: check.tick, hash: check.hash, contentHash: check.contentHash, rules: check.rules },
+    client: {
+      userAgent: str(client.userAgent),
+      timeZone: str(client.timeZone),
+      lang: str(client.lang),
+      build: str(client.build),
+    },
+  };
+}
+
 export function loadSave(store: KeyValueStore): SaveData | null {
   try {
     const text = store.getItem(SAVE_KEY);

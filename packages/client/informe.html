@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex" />
+    <title>Distritos — informe de la prueba</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <main class="informe">
+      <header>
+        <h1>Informe de la prueba de fuego</h1>
+        <p class="muted">
+          Elige las partidas que han exportado los probadores. Cada una se repite aquí con el mismo sim: por
+          día, cuántas veces entró, cuánto rato, qué hizo y cómo tenía la casa.
+        </p>
+        <label class="pick">
+          <input type="file" id="files" accept=".json,application/json" multiple />
+          <span>Elegir partidas</span>
+        </label>
+        <p class="muted" id="version"></p>
+      </header>
+      <section id="summary"></section>
+      <section id="detail"></section>
+    </main>
+    <script type="module" src="/src/informe.ts"></script>
+  </body>
+</html>

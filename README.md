@@ -41,6 +41,22 @@ Cada commit en `main` con la CI en verde se publica en **https://santi-patic.git
 
 En local, `pnpm -F @distritos/client dev` imprime una dirección «Network» (`http://192.168.x.x:5173`) que abre el juego desde el móvil en la misma wifi. `?seed=<hex>` en la URL cambia la finca al crear una partida nueva (por defecto todos los probadores tienen la misma). Los hashes dorados (`packages/sim/test/fixtures`, `packages/content/test/fixtures`) son los mismos que verifica la CI: si `pnpm check` pasa en otra máquina, esa máquina simula igual.
 
+### Prueba de fuego de F1
+
+El protocolo, la hoja de observación y el guion contrastado están en el documento «Prueba de fuego de F1» del proyecto. Dos herramientas en el repositorio:
+
+- **Informe de las partidas:** **https://santi-patic.github.io/Distritos/informe.html** (no está enlazado desde el juego). Se le dan las partidas que exportan los probadores y las repite con el mismo sim: por día, entradas, minutos, órdenes, rechazos y cómo iba la casa, y si el hash coincide con el del aparato del probador.
+- **Semana simulada:** `packages/content/test/semana.test.ts` juega siete días con las tablas reales y las variantes de `test/semana-variantes.json`, como un jugador que entra a la misma hora cada día. Corre con las pruebas del contenido; para el informe día a día y las semanas como partidas exportadas:
+
+```sh
+mkdir -p partidas
+SEMANA=semana.md SEMANA_PARTIDAS=partidas pnpm -F @distritos/content exec vitest run test/semana.test.ts
+```
+
+(en PowerShell: `$env:SEMANA="semana.md"; $env:SEMANA_PARTIDAS="partidas"; pnpm -F @distritos/content exec vitest run test/semana.test.ts`).
+
+Durante la semana de la prueba no se publica nada en `main`: el juego repite cada partida con las reglas y tablas que tenga al abrirse.
+
 ### Cuando cambia una regla o una tabla
 
 ```sh

@@ -1,0 +1,32 @@
+{
+  "description": "Variantes que mide la semana simulada (test/semana.test.ts): propuestas sobre las tablas reales, sin tocarlas. Cada una cambia la duración (segundos) y lo que da cada tarea.",
+  "variants": [
+    {
+      "id": "largas",
+      "title": "Talar y picar de 4 h que dan 20",
+      "tasks": {
+        "talar": { "seconds": 14400, "gives": { "madera": 20 } },
+        "picar": { "seconds": 14400, "gives": { "piedra": 20 } }
+      }
+    },
+    {
+      "id": "jornada",
+      "title": "Tareas de jornada (talar y picar de 10 h que dan 50; sacar agua de 5 h que llena el pozo)",
+      "tasks": {
+        "talar": { "seconds": 36000, "gives": { "madera": 50 } },
+        "picar": { "seconds": 36000, "gives": { "piedra": 50 } },
+        "sacar_agua": { "seconds": 18000, "gives": { "agua": 200 } }
+      }
+    }
+  ],
+  "runs": [
+    { "variant": null, "hours": [9], "minutes": 10 },
+    { "variant": null, "hours": [21], "minutes": 10 },
+    { "variant": null, "hours": [9, 21], "minutes": 5 },
+    { "variant": "largas", "hours": [9], "minutes": 10 },
+    { "variant": "largas", "hours": [9, 21], "minutes": 5 },
+    { "variant": "jornada", "hours": [9], "minutes": 10 },
+    { "variant": "jornada", "hours": [21], "minutes": 10 },
+    { "variant": "jornada", "hours": [9, 21], "minutes": 5 }
+  ]
+}

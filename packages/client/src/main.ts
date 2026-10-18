@@ -49,6 +49,7 @@ import {
   exportName,
   loadSave,
   newSave,
+  parseExport,
   parseSave,
   touchSession,
   writeSave,
@@ -322,25 +323,19 @@ async function main(): Promise<void> {
   }
 
   function importGame(text: string): void {
-    const next = parseSave(text);
+    const next = parseExport(text);
     if (next === null) {
       ui.toast(t('menu.importBad'));
       return;
     }
     // Si es una exportación, se comprueba que la repetición aquí da el mismo hash en su tick.
     let checkText = t('menu.imported');
-    try {
-      const raw = JSON.parse(text) as { check?: { tick?: unknown; hash?: unknown } };
-      const tick = raw.check?.tick;
-      const hash = raw.check?.hash;
-      if (typeof tick === 'number' && Number.isSafeInteger(tick) && typeof hash === 'string') {
-        const same = hashState(replay(next.params, next.log, tick, content)) === hash;
-        checkText = t(same ? 'menu.importSame' : 'menu.importDiffers', { tick });
-      }
-    } catch {
-      // Sin comprobación: basta con que sea una partida.
+    if ('check' in next) {
+      const { tick, hash } = next.check;
+      const same = hashState(replay(next.params, next.log, tick, content)) === hash;
+      checkText = t(same ? 'menu.importSame' : 'menu.importDiffers', { tick });
     }
-    startOver(next);
+    startOver(parseSave(text) ?? next);
     ui.toast(checkText);
   }
 

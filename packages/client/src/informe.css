@@ -1,0 +1,119 @@
+/*
+ * Informe de la prueba de fuego: herramienta del autor, no parte del juego. Mismos colores y
+ * letra que el juego; tablas legibles en el ordenador y en el móvil (con desplazamiento lateral).
+ */
+
+:root {
+  color-scheme: dark;
+  --night: #0f1820;
+  --panel: #16222b;
+  --line: #2a3b47;
+  --ink: #e8eeea;
+  --muted: #9aacb5;
+  --verde: #6cc070;
+  --danger: #d96a6a;
+  font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+}
+
+.informe {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font-size: 21px;
+  font-weight: 600;
+  margin: 36px 0 4px;
+}
+
+.muted {
+  color: var(--muted);
+  max-width: 75ch;
+}
+
+.pick {
+  display: inline-block;
+  margin: 8px 0;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pick input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.pick:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.scroll {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  min-width: 100%;
+}
+
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+th:first-child,
+td:first-child,
+th.text,
+td.text {
+  text-align: left;
+}
+
+td.text {
+  white-space: normal;
+  min-width: 22ch;
+}
+
+.ok {
+  color: var(--verde);
+}
+
+.bad {
+  color: var(--danger);
+}
+
+.none {
+  color: var(--muted);
+}

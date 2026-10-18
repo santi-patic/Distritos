@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { exportName, localDayOffset, newSave, parseSave, touchSession, type SaveData } from '../src/save.js';
+import {
+  exportName,
+  localDayOffset,
+  newSave,
+  parseExport,
+  parseSave,
+  touchSession,
+  type SaveData,
+} from '../src/save.js';
 
 const base = {
   template: 'f1_casa',
@@ -45,6 +53,18 @@ describe('partida guardada', () => {
     expect(
       parseSave(JSON.stringify({ ...s, exportedAt: 1, check: { tick: 1, hash: 'h' } }))?.log,
     ).toHaveLength(1);
+  });
+
+  it('una exportación conserva su comprobación y los datos del aparato; una partida, no los tiene', () => {
+    const s = newSave({ ...base, nowMs: 1_000_000, tzOffsetMin: 0 });
+    const check = { tick: 7, hash: 'a'.repeat(64), contentHash: 'c'.repeat(64), rules: '0.2.1' };
+    const client = { userAgent: 'ua', timeZone: 'Europe/Madrid', lang: 'gl', build: 'abc1234' };
+    const exp = parseExport(JSON.stringify({ ...s, exportedAt: 5, check, client }));
+    expect(exp).toMatchObject({ exportedAt: 5, check, client });
+    expect(parseExport(JSON.stringify(s))).not.toHaveProperty('check');
+    // Una comprobación mal formada no impide leer la partida.
+    expect(parseExport(JSON.stringify({ ...s, check: { tick: -1 } }))).not.toHaveProperty('check');
+    expect(parseExport('no es json')).toBeNull();
   });
 
   it('cuenta las sesiones: dos aperturas seguidas son una', () => {
