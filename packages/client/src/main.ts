@@ -40,6 +40,7 @@ import {
   type Ctx,
   type Selection,
 } from './actions.js';
+import { artEnabled, loadArt } from './art.js';
 import { LocalGame } from './game.js';
 import { amount, detectLang, duration, lang, qty, rejectText, setLang, t, when, type Lang } from './i18n.js';
 import { Renderer, type Highlight } from './render.js';
@@ -132,6 +133,7 @@ async function main(): Promise<void> {
 
   const renderer = new Renderer();
   await renderer.init(document.getElementById('map') ?? document.body);
+  if (artEnabled(location.search)) renderer.setArt(await loadArt());
 
   let selection: Selection | null = null;
   let active: string | null = ownMobiles(ctx()).find((m) => m.job === null)?.id ?? null;
