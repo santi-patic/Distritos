@@ -16,9 +16,11 @@ import {
   type BuildKind,
   type CompiledContent,
   type ElementKind,
+  type ErrandTable,
   type HireKind,
   type LinkKind,
   type MobileKind,
+  type PlaceKind,
   type ResourceKind,
   type SceneKind,
   type SceneTable,
@@ -162,7 +164,7 @@ function compileElement(id: string, raw: RawTables['elements'][string]): Element
 }
 
 function checkReferences(tables: RawTables, errors: string[]): void {
-  const has = (table: Exclude<TableName, 'scenes' | 'actions' | 'board'>, id: string): boolean =>
+  const has = (table: Exclude<TableName, 'scenes' | 'actions' | 'board' | 'recados'>, id: string): boolean =>
     (tables[table] as Record<string, unknown>)[id] !== undefined;
   const resource = (where: string, r: string): void => {
     if (!has('resources', r)) errors.push(`${where}: recurso desconocido ${r}`);
@@ -274,6 +276,22 @@ function checkReferences(tables: RawTables, errors: string[]): void {
     if (!has('mobiles', id)) errors.push(`hires.${id}: móvil desconocido`);
     amounts(`hires.${id}.cost`, h.cost);
   }
+  resource('recados.currency', tables.recados.currency);
+  for (const [id, k] of entriesOf(tables.recados.kinds)) {
+    for (const to of k.to) {
+      element(`recados.kinds.${id}.to`, to);
+      if (!has('places', to)) errors.push(`recados.kinds.${id}.to: ${to} no es un sitio de recados`);
+    }
+  }
+  for (const [id, p] of entriesOf(tables.places)) {
+    element(`places.${id}`, id);
+    for (const m of p.makes ?? []) {
+      if (tables.recados.kinds[m.kind] === undefined)
+        errors.push(`places.${id}.makes: recado desconocido ${m.kind}`);
+    }
+    if ((p.makes ?? []).length > 0 && p.every === undefined)
+      errors.push(`places.${id}: genera recados pero no dice cada cuánto (every)`);
+  }
   resource('board.currency', tables.board.currency);
   tables.board.encargos.forEach((e, i) => {
     element(`board.encargos[${i}].at`, e.at);
@@ -362,6 +380,7 @@ export function compile(tables: RawTables): CompiledContent {
     };
     if (m.eats !== undefined) out.eats = { resource: m.eats.resource, perDay: m.eats.perDay };
     if (m.hungryPermille !== undefined) out.hungryPermille = m.hungryPermille;
+    if (m.carry !== undefined) out.carry = m.carry;
     mobiles[k] = out;
   }
 
@@ -441,6 +460,32 @@ export function compile(tables: RawTables): CompiledContent {
     }),
   };
 
+  const places: Record<string, PlaceKind> = {};
+  for (const [k, p] of entriesOf(tables.places)) {
+    const out: PlaceKind = { capacity: p.capacity };
+    if (p.start !== undefined) out.start = p.start;
+    if (p.makes !== undefined) out.makes = p.makes.map((w) => ({ kind: w.kind, weight: w.weight }));
+    if (p.every !== undefined) out.everyTicks = secondsToTicks(p.every, tickMs, `places.${k}.every`);
+    places[k] = out;
+  }
+
+  const r = tables.recados;
+  const errands: ErrandTable = {
+    currency: r.currency,
+    stopTicks: secondsToTicks(r.stopSeconds, tickMs, 'recados.stopSeconds'),
+    maxStops: r.maxStops,
+    kinds: Object.fromEntries(
+      entriesOf(r.kinds).map(([k, e]) => {
+        const out: ErrandTable['kinds'][string] = { to: [...e.to], size: e.size, pay: e.pay };
+        if (e.expiresSeconds !== undefined)
+          out.expiresTicks = secondsToTicks(e.expiresSeconds, tickMs, `recados.kinds.${k}.expiresSeconds`);
+        return [k, out];
+      }),
+    ),
+  };
+  if (r.firstStopSeconds !== undefined)
+    errands.firstStopTicks = secondsToTicks(r.firstStopSeconds, tickMs, 'recados.firstStopSeconds');
+
   const compiled: Omit<CompiledContent, 'hash'> = {
     scenes,
     archetypes,
@@ -455,6 +500,8 @@ export function compile(tables: RawTables): CompiledContent {
     links,
     hires,
     board,
+    places,
+    errands,
   };
   return { hash: hashOf(compiled), ...compiled };
 }

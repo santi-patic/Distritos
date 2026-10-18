@@ -27,6 +27,13 @@ export function testContentF1(): CompiledContent {
   return load(TEST_CONTENT_F1_PATH);
 }
 
+/** Contenido de prueba de F1 con recados: el de F1 más sitios, recados, rutas y cocina y casas vecinas en el común. */
+export const TEST_CONTENT_F1R_PATH = join(import.meta.dirname, 'content-f1r.json');
+
+export function testContentF1R(): CompiledContent {
+  return load(TEST_CONTENT_F1R_PATH);
+}
+
 /** El contenido de prueba por nombre de fichero, como lo indican los fixtures. */
 export function testContentNamed(file: string | undefined): CompiledContent {
   return load(join(import.meta.dirname, file ?? 'content.json'));

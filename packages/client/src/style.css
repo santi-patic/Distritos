@@ -338,6 +338,13 @@ button:focus-visible,
   grid-template-columns: 1fr 1fr;
 }
 
+/* Las secundarias de una hoja, en una fila: una sola ocupa todo el ancho. */
+.acts.side {
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  margin-top: 8px;
+}
+
 .act {
   display: grid;
   gap: 2px;

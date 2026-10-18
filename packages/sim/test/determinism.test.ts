@@ -19,6 +19,7 @@ import { hashState } from '../src/index.js';
 import { center, key, parse, range } from '../src/hex.js';
 import { nextInt, seed, type RngState } from '../src/rng.js';
 import { capacityOf } from '../src/rules/elements.js';
+import { carriedBy } from '../src/rules/errands.js';
 import { validate } from '../src/rules/orders.js';
 import { createScene, type SceneParams } from '../src/scene.js';
 import { assertAllIntegers, clone, deserialize, serialize } from '../src/serialize.js';
@@ -28,7 +29,7 @@ import type { Event } from '../src/types/events.js';
 import type { Order, OrderIntent, OrderKind, OrderLog } from '../src/types/orders.js';
 import type { SimState } from '../src/types/state.js';
 import { view } from '../src/view.js';
-import { testContent, testContentF1, testContentNamed } from './content.js';
+import { testContent, testContentNamed } from './content.js';
 
 const content = testContent();
 const FIXTURES = join(import.meta.dirname, 'fixtures');
@@ -290,8 +291,30 @@ describe('fuzz', () => {
   });
 });
 
-describe('rápido = lento con los flujos de F1', () => {
-  const c1 = testContentF1();
+describe.each([
+  ['los flujos de F1', 'content-f1.json'],
+  ['los recados de F1', 'content-f1r.json'],
+])('rápido = lento con %s', (_name, file) => {
+  const c1 = testContentNamed(file);
+  const errands = c1.errands !== undefined;
+  // Con recados se sortean también rutas, cortes y descargas; sin ellos, la lista de siempre.
+  const KINDS: readonly OrderKind[] = [
+    'move',
+    'reveal',
+    'build',
+    'build',
+    'link',
+    'link',
+    'job',
+    'job',
+    'job',
+    'toggle',
+    'hire',
+    'deliver',
+    'deliver',
+    ...(errands ? (['route', 'route', 'cancel', 'unload'] as const) : []),
+    'credit',
+  ];
   const params: SceneParams = {
     kind: 'district',
     template: 'f1_dos',
@@ -341,23 +364,16 @@ describe('rápido = lento con los flujos de F1', () => {
         const sectors = Object.keys(live.map.sectors)
           .filter((h) => live.map.sectors[h]!.plot === plot)
           .sort();
+        // Con recados: un obrero parado con carga deja su carga a menudo (si no, casi nunca se ve).
+        const stranded = mobiles.filter((m) => {
+          const mob = live.mobiles[m];
+          return mob?.job === null && mob.where.kind === 'at' && carriedBy(live, m).length > 0;
+        });
         const candidate = (): OrderIntent => {
-          const kind: OrderKind = pick([
-            'move',
-            'reveal',
-            'build',
-            'build',
-            'link',
-            'link',
-            'job',
-            'job',
-            'job',
-            'toggle',
-            'hire',
-            'deliver',
-            'deliver',
-            'credit',
-          ] as const);
+          if (errands && stranded.length > 0 && draw(2) === 0) {
+            return { actor, kind: 'unload', args: { mobile: pick(stranded) } };
+          }
+          const kind: OrderKind = pick(KINDS);
           switch (kind) {
             case 'move':
               return { actor, kind, args: { mobile: pick(mobiles), to: anyElement() } };
@@ -388,6 +404,21 @@ describe('rápido = lento con los flujos de F1', () => {
             case 'deliver': {
               const id = live.district.board?.encargo?.id ?? 1;
               return { actor, kind, args: { mobile: pick(mobiles), encargo: draw(5) === 0 ? id + 1 : id } };
+            }
+            case 'route': {
+              const places = elements.filter((e) => c1.places?.[live.elements[e]!.kind] !== undefined);
+              const pool = places.length > 0 ? places : elements;
+              const stops: string[] = [];
+              for (let n = 1 + draw(5); n > 0; n--) stops.push(draw(12) === 0 ? anyElement() : pick(pool));
+              return { actor, kind, args: { mobile: pick(mobiles), stops } };
+            }
+            case 'cancel': {
+              const onRoute = mobiles.filter((m) => live.mobiles[m]?.job?.kind === 'route');
+              return { actor, kind, args: { mobile: onRoute.length > 0 ? pick(onRoute) : pick(mobiles) } };
+            }
+            case 'unload': {
+              const loaded = mobiles.filter((m) => carriedBy(live, m).length > 0);
+              return { actor, kind, args: { mobile: loaded.length > 0 ? pick(loaded) : pick(mobiles) } };
             }
             default:
               return {
@@ -440,7 +471,10 @@ describe('rápido = lento con los flujos de F1', () => {
       for (const [k, n] of Object.entries(accepted(log, events))) totals[k] = (totals[k] ?? 0) + n;
     }
     // Algo tiene que haber pasado de verdad: cada orden de F1 se ha aceptado alguna vez.
-    for (const k of ['build', 'link', 'job', 'toggle', 'hire', 'deliver', 'reveal', 'move']) {
+    const kinds = errands
+      ? ['build', 'link', 'job', 'deliver', 'reveal', 'move', 'route', 'cancel', 'unload']
+      : ['build', 'link', 'job', 'toggle', 'hire', 'deliver', 'reveal', 'move'];
+    for (const k of kinds) {
       expect(totals[k] ?? 0, `órdenes ${k} aceptadas`).toBeGreaterThan(0);
     }
   });

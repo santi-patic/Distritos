@@ -14,6 +14,7 @@ import { assertLattice, center, key, keyOf, nearest, parse, range, type Hex, typ
 import { at, get, removeKey, sortedKeys } from './iter.js';
 import { nextInt, pickWeighted, seed, type RngState } from './rng.js';
 import { initBoard } from './rules/board.js';
+import { initErrands } from './rules/errands.js';
 import { addElement, capacityOf, setLevel } from './rules/elements.js';
 import { assertFlowContent } from './rules/flows.js';
 import { addLink } from './rules/links.js';
@@ -269,6 +270,7 @@ export function createScene(params: SceneParams, content: CompiledContent): SimS
   for (const actor of params.actors) occupy(state, actor, content, lat);
   if (template.common !== null) placeCommon(state, template.common.elements ?? [], content, lat);
   initBoard(state, content);
+  initErrands(state, content);
 
   return state;
 }

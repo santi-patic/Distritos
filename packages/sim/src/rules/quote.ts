@@ -12,6 +12,7 @@ import type { Int, ResourceId, Tick } from '../types/ids.js';
 import type { OrderArgs, OrderIntent } from '../types/orders.js';
 import type { Mobile, SimState } from '../types/state.js';
 import { deliveryQuote } from './board.js';
+import { planRoute, stopWork } from './errands.js';
 import { linkSpec } from './links.js';
 import { plannedArrival } from './movement.js';
 import { validate } from './orders.js';
@@ -138,7 +139,20 @@ export function quote(state: SimState, intent: OrderIntent, content: CompiledCon
         pay,
       };
     }
+    case 'route': {
+      const args = intent.args as OrderArgs['route'];
+      const m = mobileOf(state, args.mobile);
+      const plan = planRoute(state, content, m, actor, args.stops);
+      const first = plan?.[0];
+      const last = plan?.[plan.length - 1];
+      const each = stopWork(state, content, m, actor);
+      if (plan === null || first === undefined || last === undefined || each === null) return null;
+      // Trabajo con luz de todas las paradas; la espera de noche no cuenta (la dice `end`).
+      return { cost: {}, work: each * plan.length, arrive: first.arrive, end: last.leave };
+    }
     case 'toggle':
+    case 'cancel':
+    case 'unload':
     case 'skip':
     case 'content':
     case 'credit':

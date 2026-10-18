@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://distritos.local/schemas/places.schema.json",
+  "title": "Sitios de recados",
+  "description": "Elementos del común y casas vecinas que guardan recados hasta su tope y generan los suyos cada cierto tiempo. La clave es el tipo de elemento.",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["capacity"],
+    "properties": {
+      "capacity": {
+        "$ref": "common.schema.json#/definitions/posInt",
+        "description": "Bultos que caben, generados o dejados."
+      },
+      "start": {
+        "$ref": "common.schema.json#/definitions/nonNegInt",
+        "description": "Recados que se generan al crear la partida."
+      },
+      "makes": {
+        "type": "array",
+        "items": {
+          "$ref": "common.schema.json#/definitions/weighted"
+        },
+        "description": "Tipos de recado que genera, con su peso."
+      },
+      "every": {
+        "$ref": "common.schema.json#/definitions/seconds",
+        "description": "Cada cuántos segundos genera uno, si cabe."
+      }
+    }
+  }
+}

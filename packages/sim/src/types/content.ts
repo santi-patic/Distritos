@@ -148,6 +148,8 @@ export interface MobileKind {
   eats?: { resource: ResourceId; perDay: Int };
   /** F1. Rendimiento en las tareas cuando no ha comido, en milésimas. */
   hungryPermille?: Permille;
+  /** F1. Bultos de recados que lleva a la vez. */
+  carry?: Int;
 }
 
 export interface TerrainKind {
@@ -239,6 +241,40 @@ export interface BoardTable {
   encargos: EncargoKind[];
 }
 
+/** F1. Sitio de recados (lugares del común y casas vecinas): guarda recados hasta su tope y genera los suyos. */
+export interface PlaceKind {
+  /** Bultos que caben, generados o dejados. */
+  capacity: Int;
+  /** Recados que se generan aquí al crear la escena. */
+  start?: Int;
+  /** Recados que genera, con su peso. */
+  makes?: Weighted[];
+  /** Cada cuántos ticks genera uno (si hay sitio). */
+  everyTicks?: Int;
+}
+
+/** F1. Tipo de recado: algo del común que hay que llevar de un sitio a otro. */
+export interface ErrandKind {
+  /** Tipos de sitio a los que puede ir. */
+  to: KindId[];
+  /** Bultos que ocupa. */
+  size: Int;
+  /** Lo que paga al entregarlo, en la moneda de los recados. */
+  pay: Int;
+  /** Ticks que aguanta en su sitio sin que nadie lo recoja; sin esto, no caduca. */
+  expiresTicks?: Int;
+}
+
+/** F1. Recados y rutas. */
+export interface ErrandTable {
+  currency: ResourceId;
+  /** Trabajo con luz de cada parada de una ruta (cargar, descargar, apuntar en la pizarra). */
+  stopTicks: Int;
+  firstStopTicks?: Int;
+  maxStops: Int;
+  kinds: Record<KindId, ErrandKind>;
+}
+
 export interface CompiledContent {
   /** sha-256 del JSON canónico de todas las tablas. */
   hash: string;
@@ -256,6 +292,8 @@ export interface CompiledContent {
   links?: Record<KindId, LinkKind>;
   hires?: Record<KindId, HireKind>;
   board?: BoardTable;
+  places?: Record<KindId, PlaceKind>;
+  errands?: ErrandTable;
 }
 
 /** Hallazgo que no deja nada en el sector. */

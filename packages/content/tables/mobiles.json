@@ -11,7 +11,8 @@
       "resource": "comida",
       "perDay": 1
     },
-    "hungryPermille": 500
+    "hungryPermille": 500,
+    "carry": 4
   },
   "obrero_tecnico": {
     "stats": {
@@ -25,6 +26,7 @@
       "resource": "comida",
       "perDay": 1
     },
-    "hungryPermille": 500
+    "hungryPermille": 500,
+    "carry": 3
   }
 }

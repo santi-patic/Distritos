@@ -189,7 +189,31 @@ export interface DeliverJob {
   endTick: Tick;
 }
 
-export type Job = RevealJob | BuildJob | LinkJob | TaskJob | DeliverJob;
+/** F1. Una parada de una ruta, con su horario fijado al dar la orden. */
+export interface RouteStop {
+  at: ElementId;
+  arrive: Tick;
+  /** Fin del trabajo en la parada (con luz) y salida hacia la siguiente. */
+  leave: Tick;
+}
+
+/**
+ * F1. Ruta de recados: una cadena de viajes con una parada de trabajo en cada sitio. En cada
+ * parada se entrega lo que va allí y se recoge lo que va a una parada posterior. `startTick` y
+ * `endTick` son los de la parada en curso; el horario entero se fija al dar la orden.
+ */
+export interface RouteJob {
+  kind: 'route';
+  stops: RouteStop[];
+  /** Parada en curso: a la que va o en la que está. */
+  index: Int;
+  startTick: Tick;
+  endTick: Tick;
+  /** Orden que la lanzó; desempata las llegadas de sus viajes. */
+  seq: Int;
+}
+
+export type Job = RevealJob | BuildJob | LinkJob | TaskJob | DeliverJob | RouteJob;
 
 export interface Mobile {
   id: MobileId;
@@ -280,11 +304,42 @@ export interface Board {
   totals: Record<ActorId, Record<ResourceId, Int>>;
 }
 
+/** F1. Un recado: algo que hay que llevar de un sitio a otro. */
+export interface Errand {
+  id: Int;
+  kind: KindId;
+  /** Sitio de destino. */
+  to: ElementId;
+  size: Int;
+  /** Lo que paga al entregarlo; se debe a quien lo recoge (P1). */
+  pay: Int;
+  /** Sitio donde está, o null si lo lleva un obrero. */
+  at: ElementId | null;
+  carrier?: MobileId;
+  /** Quien lo recogió. Lo que deja en un sitio solo lo vuelve a recoger él. */
+  holder?: ActorId;
+  /** Tick en que caduca si sigue sin recoger. */
+  expires?: Tick;
+}
+
+/** F1. Los recados del distrito. */
+export interface Errands {
+  /** Id del próximo recado. */
+  next: Int;
+  items: Record<string, Errand>;
+  /** Próximo tick de generación de cada sitio. */
+  nextAt: Record<ElementId, Tick>;
+  /** Recados entregados por cada actor. */
+  delivered: Record<ActorId, Int>;
+}
+
 /** Lo común; se detalla con el diseño del distrito (F5). */
 export interface DistrictState {
   pot: Record<ResourceId, Int>;
   /** F1: el común mínimo que lleva el juego hasta F5. */
   board?: Board;
+  /** F1: recados entre los sitios del común y las casas vecinas. */
+  errands?: Errands;
 }
 
 export interface SectorContent {

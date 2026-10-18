@@ -28,6 +28,12 @@ export interface OrderArgs {
   hire: { kind: KindId };
   /** Manda un obrero a cumplir (en parte) el encargo de la pizarra del común. */
   deliver: { mobile: MobileId; encargo: Int };
+  /** Manda un obrero a una ruta de recados por varios sitios, en orden. */
+  route: { mobile: MobileId; stops: ElementId[] };
+  /** Corta la ruta de un obrero: acaba en la parada a la que va o en la que está. */
+  cancel: { mobile: MobileId };
+  /** Deja los recados que lleva un obrero parado en el sitio donde está. */
+  unload: { mobile: MobileId };
   // ---- del sistema (formato fijado ya; uso desde F2) ----
   /** Puesta al día más allá del tope: el tick salta sin producir. */
   skip: { ticks: Int };
@@ -50,6 +56,9 @@ export const ORDER_KINDS: readonly OrderKind[] = [
   'toggle',
   'hire',
   'deliver',
+  'route',
+  'cancel',
+  'unload',
   'skip',
   'content',
   'credit',
@@ -117,6 +126,10 @@ export type Reject =
   | 'no_bed'
   | 'no_encargo'
   | 'encargo_done'
+  | 'bad_route'
+  | 'not_a_place'
+  | 'no_route'
+  | 'place_full'
   | `insufficient:${ResourceId}`
   | `full:${ResourceId}`;
 

@@ -39,6 +39,10 @@ export interface BoardModel {
   always: string[];
   send: ActionView | null;
   canShow: boolean;
+  /** Sitios del común con recados, en una línea cada uno. */
+  errands: string[];
+  /** Recados entregados por cada finca. */
+  errandsDone: string[];
 }
 
 export interface MenuModel {
@@ -135,6 +139,11 @@ const ICONS = {
 /** Firma de un modelo para no rehacer el DOM si no ha cambiado. */
 function sig(v: unknown): string {
   return JSON.stringify(v);
+}
+
+/** Acciones secundarias (cancelar, deshacer): sin presupuesto ni orden; van juntas en una fila. */
+function isQuiet(a: ActionView): boolean {
+  return a.close === true || (a.next !== undefined && a.intent === undefined && a.meta === '');
 }
 
 export class Ui {
@@ -284,7 +293,7 @@ export class Ui {
       'button',
       {
         type: 'button',
-        class: `act${a.close === true ? ' quiet' : ''}`,
+        class: `act${isQuiet(a) ? ' quiet' : ''}`,
         'data-action': a.id,
         disabled: !a.enabled,
       },
@@ -314,18 +323,22 @@ export class Ui {
     close.addEventListener('click', () => {
       this.on.closeSheet();
     });
+    // Quién haría las órdenes, salvo en la hoja del propio obrero.
+    const name = view.worker === null ? null : (view.worker.name ?? view.worker.id);
     const workerLine =
-      view.worker !== null &&
+      name !== null &&
+      name !== view.title &&
       view.actions.some((a) => a.intent !== undefined && 'mobile' in (a.intent.args as object))
-        ? h('p', { class: 'by' }, t('sheet.worker', { name: view.worker.name ?? view.worker.id }))
+        ? h('p', { class: 'by' }, t('sheet.worker', { name }))
         : null;
+    const main = view.actions.filter((a) => !isQuiet(a));
+    const quiet = view.actions.filter(isQuiet);
     const parts: Child[] = [
       h('header', { class: 'sheet-head' }, h('h2', {}, view.title), close),
       workerLine,
       view.lines.length > 0 ? h('ul', { class: 'lines' }, ...view.lines.map((l) => h('li', {}, l))) : null,
-      view.actions.length > 0
-        ? h('div', { class: 'acts' }, ...view.actions.map((a) => this.actionButton(a)))
-        : null,
+      main.length > 0 ? h('div', { class: 'acts' }, ...main.map((a) => this.actionButton(a))) : null,
+      quiet.length > 0 ? h('div', { class: 'acts side' }, ...quiet.map((a) => this.actionButton(a))) : null,
     ];
     this.sheet.replaceChildren(
       ...parts.filter((p): p is Node | string => p !== null && p !== undefined && p !== false),
@@ -419,6 +432,22 @@ export class Ui {
                 { class: 'chalk-list' },
                 h('h3', {}, t('board.always')),
                 h('ul', {}, ...m.always.map((w) => h('li', {}, w))),
+              )
+            : null,
+          m.errands.length > 0
+            ? h(
+                'div',
+                { class: 'chalk-list' },
+                h('h3', {}, t('board.errands')),
+                h('ul', {}, ...m.errands.map((w) => h('li', {}, w))),
+              )
+            : null,
+          m.errandsDone.length > 0
+            ? h(
+                'div',
+                { class: 'chalk-list' },
+                h('h3', {}, t('board.errandsDone')),
+                h('ul', {}, ...m.errandsDone.map((w) => h('li', {}, w))),
               )
             : null,
           buttons.length > 0 ? h('div', { class: 'acts' }, ...buttons) : null,

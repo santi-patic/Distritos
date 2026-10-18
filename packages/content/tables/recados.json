@@ -1,0 +1,38 @@
+{
+  "currency": "eagles",
+  "stopSeconds": 900,
+  "firstStopSeconds": 60,
+  "maxStops": 8,
+  "kinds": {
+    "pan": {
+      "to": ["casa_vecina", "dispensario"],
+      "size": 1,
+      "pay": 1
+    },
+    "lena": {
+      "to": ["cocina_comun"],
+      "size": 2,
+      "pay": 2
+    },
+    "medicinas": {
+      "to": ["casa_vecina"],
+      "size": 1,
+      "pay": 2
+    },
+    "conservas": {
+      "to": ["dispensario", "casa_vecina"],
+      "size": 1,
+      "pay": 1
+    },
+    "bateria_carga": {
+      "to": ["casa_vecina", "cocina_comun"],
+      "size": 2,
+      "pay": 2
+    },
+    "cesta": {
+      "to": ["cocina_comun"],
+      "size": 1,
+      "pay": 1
+    }
+  }
+}

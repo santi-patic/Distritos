@@ -14,6 +14,7 @@ import type { Tick } from '../types/ids.js';
 import type { SimState } from '../types/state.js';
 import { completeDelivery } from './board.js';
 import { completeBuild } from './build.js';
+import { advanceRoute } from './errands.js';
 import { revealSector } from './fog.js';
 import { completeLink } from './links.js';
 import { completeTask } from './tasks.js';
@@ -25,6 +26,11 @@ export function processJobs(state: SimState, content: CompiledContent, events: E
     if (m === undefined || m.job === null) continue;
     if (m.job.endTick > state.tick) continue;
     const job = m.job;
+    if (job.kind === 'route') {
+      // Una ruta no acaba en cada parada: entrega, recoge y sale hacia la siguiente.
+      advanceRoute(state, content, m, job, events);
+      continue;
+    }
     switch (job.kind) {
       case 'reveal':
         revealSector(state, content, job.hex, m.owner, events);

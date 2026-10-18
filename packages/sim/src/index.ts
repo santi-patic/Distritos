@@ -64,6 +64,8 @@ export type { Quote } from './rules/quote.js';
 export { linkSpec } from './rules/links.js';
 export type { LinkSpec } from './rules/links.js';
 export { deliveryQuote } from './rules/board.js';
+export { planRoute, carriedBy, carryOf, errandsAt, placeIds } from './rules/errands.js';
+export { speedBetween } from './rules/movement.js';
 
 import { hashOf } from './hash.js';
 import type { ActorId } from './types/ids.js';

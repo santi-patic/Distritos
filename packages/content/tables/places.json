@@ -1,0 +1,60 @@
+{
+  "cocina_comun": {
+    "capacity": 4,
+    "start": 2,
+    "makes": [
+      {
+        "kind": "pan",
+        "weight": 1
+      }
+    ],
+    "every": 14400
+  },
+  "almacen_comun": {
+    "capacity": 6,
+    "start": 2,
+    "makes": [
+      {
+        "kind": "lena",
+        "weight": 2
+      },
+      {
+        "kind": "conservas",
+        "weight": 1
+      }
+    ],
+    "every": 21600
+  },
+  "dispensario": {
+    "capacity": 3,
+    "start": 1,
+    "makes": [
+      {
+        "kind": "medicinas",
+        "weight": 1
+      }
+    ],
+    "every": 28800
+  },
+  "punto_carga": {
+    "capacity": 3,
+    "start": 1,
+    "makes": [
+      {
+        "kind": "bateria_carga",
+        "weight": 1
+      }
+    ],
+    "every": 28800
+  },
+  "casa_vecina": {
+    "capacity": 2,
+    "makes": [
+      {
+        "kind": "cesta",
+        "weight": 1
+      }
+    ],
+    "every": 43200
+  }
+}

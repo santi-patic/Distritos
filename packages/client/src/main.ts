@@ -29,6 +29,10 @@ import {
 } from '@distritos/sim';
 import {
   energyCapacity,
+  errandBoard,
+  errandDestinations,
+  isPlace,
+  jobEnd,
   ownMobiles,
   sheetFor,
   stocks,
@@ -136,7 +140,14 @@ async function main(): Promise<void> {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   function ctx(): Ctx {
-    return { state: game.state, content, actor: ACTOR, anchorMs: save.anchorMs, nowMs: Date.now() };
+    return {
+      state: game.state,
+      content,
+      actor: ACTOR,
+      anchorMs: save.anchorMs,
+      nowMs: Date.now(),
+      log: save.log,
+    };
   }
 
   function persist(): void {
@@ -152,6 +163,11 @@ async function main(): Promise<void> {
       refreshUi(true);
     },
     worker: (id) => {
+      if (selection?.kind === 'route') {
+        // Con una ruta a medias, elegir un obrero es cambiar quién la hace.
+        routeWorker(id);
+        return;
+      }
       active = id;
       selection = { kind: 'mobile', id };
       const m = game.state.mobiles[id];
@@ -201,6 +217,20 @@ async function main(): Promise<void> {
       startOver(freshSave());
     },
   });
+
+  /** Cambia el obrero de la ruta que se está preparando, si está libre. */
+  function routeWorker(id: string): void {
+    if (selection?.kind !== 'route') return;
+    const m = game.state.mobiles[id];
+    if (m?.owner !== ACTOR) return;
+    if (m.job !== null) {
+      ui.toast(t('route.busy', { name: m.name ?? m.id }));
+      return;
+    }
+    active = id;
+    selection = { ...selection, mobile: id };
+    refreshUi(true);
+  }
 
   function positionOfNow(m: Mobile): { x: number; y: number } {
     if (m.where.kind === 'at') return m.where.pos;
@@ -354,6 +384,11 @@ async function main(): Promise<void> {
         const v = board.totals[ACTOR]?.[r] ?? 0;
         return r === 'trabajo' ? t('board.totalWork', { d: duration(v) }) : cap(amount(r, v));
       });
+    const errands = errandBoard(ctx());
+    const errandPlaces = errands?.places ?? [];
+    const errandsDone = Object.keys(errands?.delivered ?? {})
+      .sort()
+      .map((actor) => `${actor === ACTOR ? t('board.you') : actor}: ${errands?.delivered[actor] ?? 0}`);
     if (e === null) {
       return {
         title,
@@ -365,6 +400,8 @@ async function main(): Promise<void> {
         always,
         send: null,
         canShow: false,
+        errands: errandPlaces,
+        errandsDone,
       };
     }
     const dest = game.state.elements[e.at];
@@ -404,6 +441,8 @@ async function main(): Promise<void> {
       always,
       send,
       canShow: dest !== undefined,
+      errands: errandPlaces,
+      errandsDone,
     };
   }
 
@@ -415,7 +454,7 @@ async function main(): Promise<void> {
       line:
         m.job === null
           ? t('worker.idle')
-          : t('worker.freeAt', { when: when(game.msOf(m.job.endTick), c.nowMs) }),
+          : t('worker.freeAt', { when: when(game.msOf(jobEnd(m.job)), c.nowMs) }),
       active: m.id === active,
       busy: m.job !== null,
       hungry: m.hungry === true,
@@ -475,6 +514,14 @@ async function main(): Promise<void> {
         h.candidates = [selection.to];
       }
     }
+    if (selection?.kind === 'element' && isPlace(ctx(), selection.id)) {
+      h.destinations = errandDestinations(ctx(), selection.id);
+    }
+    if (selection?.kind === 'route') {
+      h.route = { mobile: selection.mobile, stops: selection.stops };
+      h.mobile = selection.mobile;
+      h.candidates = sheetFor(ctx(), selection, active)?.candidates ?? [];
+    }
     const e = game.state.district.board?.encargo;
     if (e !== null && e !== undefined && e.reserved < e.amount) h.encargo = e.at;
     return h;
@@ -483,6 +530,16 @@ async function main(): Promise<void> {
   let cachedHighlight: Highlight = {};
 
   function eventToasts(events: Event[]): void {
+    // Los recados entregados en una parada se avisan juntos.
+    let errandPay = 0;
+    let errandCount = 0;
+    for (const ev of events) {
+      if (ev.kind === 'errand_delivered' && ev.actor === ACTOR) {
+        errandPay += ev.pay;
+        errandCount += 1;
+      }
+    }
+    if (errandCount > 0) ui.toast(t('toast.errands', { pay: amount('eagles', errandPay) }));
     for (const ev of events) {
       switch (ev.kind) {
         case 'sector_revealed':
@@ -522,6 +579,8 @@ async function main(): Promise<void> {
           const m = game.state.mobiles[ev.mobile];
           if (m?.owner === ACTOR && ev.job.kind === 'task')
             ui.toast(t('toast.free', { name: m.name ?? m.id }));
+          if (m?.owner === ACTOR && ev.job.kind === 'route')
+            ui.toast(t('toast.routeDone', { name: m.name ?? m.id }));
           break;
         }
         case 'rejected':
@@ -541,7 +600,13 @@ async function main(): Promise<void> {
     if (selection.kind === 'element') p = renderer.screenOf(v, { element: selection.id });
     else if (selection.kind === 'mobile') p = renderer.screenOf(v, { mobile: selection.id });
     else if (selection.kind === 'sector') p = renderer.screenOf(v, { sector: selection.hex });
-    else p = renderer.screenOf(v, { element: selection.to ?? selection.from });
+    else if (selection.kind === 'route') {
+      const last = selection.stops[selection.stops.length - 1];
+      p =
+        last === undefined
+          ? renderer.screenOf(v, { mobile: selection.mobile })
+          : renderer.screenOf(v, { element: last });
+    } else p = renderer.screenOf(v, { element: selection.to ?? selection.from });
     if (p === null) return;
     const sheet = document.getElementById('sheet');
     const insets = ui.insets();
@@ -560,6 +625,10 @@ async function main(): Promise<void> {
     game.sync();
     const v = game.view();
     const hit = renderer.hit(p, v);
+    if (selection?.kind === 'route') {
+      routeTap(hit);
+      return;
+    }
     if (selection?.kind === 'link' && selection.to === null) {
       const view = sheetFor(ctx(), selection, active);
       if (hit?.kind === 'element' && view?.candidates.includes(hit.id) === true) {
@@ -592,6 +661,31 @@ async function main(): Promise<void> {
       // Un sector abierto ajeno o común sin nada que hacer no abre hoja.
       selection = s?.status === 'hidden' || own ? { kind: 'sector', hex: hit.hex, pos: hit.pos } : null;
     }
+    refreshUi(true);
+    keepVisible();
+  }
+
+  /** Con una ruta abierta, tocar un sitio añade una parada; tocar un obrero propio cambia quién va. */
+  function routeTap(hit: ReturnType<Renderer['hit']>): void {
+    if (selection?.kind !== 'route') return;
+    if (hit?.kind === 'mobile') {
+      routeWorker(hit.id);
+      return;
+    }
+    if (hit?.kind !== 'element' || !isPlace(ctx(), hit.id)) {
+      ui.toast(t('route.notPlace'));
+      return;
+    }
+    const max = content.errands?.maxStops ?? 0;
+    if (selection.stops[selection.stops.length - 1] === hit.id) {
+      ui.toast(t('route.same'));
+      return;
+    }
+    if (selection.stops.length >= max) {
+      ui.toast(t('route.max', { n: max }));
+      return;
+    }
+    selection = { ...selection, stops: [...selection.stops, hit.id] };
     refreshUi(true);
     keepVisible();
   }
@@ -722,6 +816,11 @@ async function main(): Promise<void> {
     hash: () => game.hash(),
     screenOf: (what: { element?: string; mobile?: string; sector?: string }) =>
       renderer.screenOf(game.view(), what),
+    /** Centra la cámara en un elemento (pruebas: los sitios del común quedan fuera del encuadre). */
+    focus: (element: string) => {
+      const e = game.state.elements[element];
+      if (e !== undefined) renderer.focus(e.pos);
+    },
     sectorKey: (q: number, r: number) => H.keyOf(q, r),
   };
 }

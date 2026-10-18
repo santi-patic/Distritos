@@ -31,23 +31,22 @@ export function arrivalTick(from: Vec, to: Vec, speedMmPerS: Int, tickMs: Int, n
 }
 
 /**
- * Velocidad de un viaje: la del móvil, o la del camino si sale de un elemento unido al destino
- * por un nexo con velocidad propia (F1). Movimiento lineal: solo cuenta el camino directo.
+ * Velocidad entre dos elementos: la base, o la del camino que los une si hay uno con velocidad
+ * propia (F1). Movimiento lineal: solo cuenta el camino directo.
  */
-export function tripSpeed(
+export function speedBetween(
   state: SimState,
   content: CompiledContent,
-  m: Mobile,
-  toElement: ElementId | null,
+  base: MmPerS,
+  from: ElementId | null,
+  to: ElementId | null,
 ): MmPerS {
-  const base = m.stats.speed;
-  if (m.where.kind !== 'at' || m.where.element === null || toElement === null) return base;
-  const a = m.where.element;
+  if (from === null || to === null) return base;
   let best = base;
   for (const id of sortedKeys(state.links)) {
     const link = state.links[id];
     if (link === undefined) continue;
-    const joins = (link.from === a && link.to === toElement) || (link.from === toElement && link.to === a);
+    const joins = (link.from === from && link.to === to) || (link.from === to && link.to === from);
     if (!joins) continue;
     const permille = content.links?.[link.kind]?.speedPermille;
     if (permille === undefined) continue;
@@ -55,6 +54,20 @@ export function tripSpeed(
     if (v > best) best = v;
   }
   return best;
+}
+
+/**
+ * Velocidad de un viaje: la del móvil, o la del camino si sale de un elemento unido al destino
+ * por un nexo con velocidad propia (F1).
+ */
+export function tripSpeed(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  toElement: ElementId | null,
+): MmPerS {
+  const from = m.where.kind === 'at' ? m.where.element : null;
+  return speedBetween(state, content, m.stats.speed, from, toElement);
 }
 
 /** Tick de llegada de un viaje que saliera ahora, sin lanzarlo. */

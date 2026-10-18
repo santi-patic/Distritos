@@ -51,6 +51,14 @@
     {
       "fileMatch": ["packages/content/tables/board.json"],
       "url": "./packages/content/schemas/board.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/places.json"],
+      "url": "./packages/content/schemas/places.schema.json"
+    },
+    {
+      "fileMatch": ["packages/content/tables/recados.json"],
+      "url": "./packages/content/schemas/recados.schema.json"
     }
   ],
   "editor.formatOnSave": true,

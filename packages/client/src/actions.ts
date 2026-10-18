@@ -6,11 +6,17 @@
  */
 
 import {
+  advance,
   available,
   bedsOf,
   capacityOf,
+  carriedBy,
+  carryOf,
+  errandsAt,
   levelOf,
   linkSpec,
+  placeIds,
+  planRoute,
   positionOf,
   quote,
   resolveFlows,
@@ -20,9 +26,13 @@ import {
   workersOf,
   type CompiledContent,
   type Element,
+  type Errand,
+  type Event,
   type Flows,
   type HexKey,
+  type Job,
   type Mobile,
+  type Order,
   type OrderIntent,
   type Quote,
   type Sector,
@@ -35,7 +45,9 @@ export type Selection =
   | { kind: 'element'; id: string }
   | { kind: 'sector'; hex: HexKey; pos: Vec }
   | { kind: 'mobile'; id: string }
-  | { kind: 'link'; linkKind: string; from: string; to: string | null };
+  | { kind: 'link'; linkKind: string; from: string; to: string | null }
+  /** Ruta de recados que se está preparando: el obrero y las paradas tocadas, en orden. */
+  | { kind: 'route'; mobile: string; stops: string[] };
 
 export interface ActionView {
   /** Estable, para las pruebas y para la etiqueta `data-action`. */
@@ -69,6 +81,8 @@ export interface Ctx {
   /** Época en ms del tick 0. */
   anchorMs: number;
   nowMs: number;
+  /** Registro de órdenes: lo sellado en el tick actual aún no está aplicado al estado. */
+  log?: readonly Order[];
 }
 
 function msOf(ctx: Ctx, tick: number): number {
@@ -85,6 +99,92 @@ function lower(text: string): string {
 
 function elementName(kind: string): string {
   return has(`el.${kind}`) ? t(`el.${kind}`) : kind;
+}
+
+const DIRS = ['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'];
+
+/**
+ * Para distinguir sitios del mismo tipo (las casas vecinas): hacia dónde cae cada uno respecto
+ * al centro de los de su tipo («del norte»). Si dos caen hacia el mismo lado, un número.
+ */
+function siteSuffix(ctx: Ctx, e: Element): string | null {
+  if (ctx.content.places?.[e.kind] === undefined) return null;
+  const same = Object.keys(ctx.state.elements)
+    .sort()
+    .map((id) => ctx.state.elements[id])
+    .filter((x): x is Element => x?.kind === e.kind);
+  if (same.length < 2) return null;
+  const cx = same.reduce((a, x) => a + x.pos.x, 0) / same.length;
+  const cy = same.reduce((a, x) => a + x.pos.y, 0) / same.length;
+  const dirOf = (x: Element): string => {
+    // La y crece hacia abajo (el sur), como en la pantalla.
+    const octant = Math.round(Math.atan2(x.pos.y - cy, x.pos.x - cx) / (Math.PI / 4));
+    return DIRS[((octant % 8) + 8) % 8] ?? 'n';
+  };
+  const dirs = same.map(dirOf);
+  if (new Set(dirs).size === dirs.length) return t(`dir.${dirOf(e)}`);
+  return String(same.findIndex((x) => x.id === e.id) + 1);
+}
+
+/** Nombre de un elemento concreto: el de su tipo y, si hace falta, hacia dónde cae. */
+export function elementLabel(ctx: Ctx, e: Element): string {
+  const suffix = siteSuffix(ctx, e);
+  return suffix === null ? elementName(e.kind) : `${elementName(e.kind)} ${suffix}`;
+}
+
+/** «a la cocina común», «a la casa vecina del norte». */
+function destText(ctx: Ctx, e: Element): string {
+  const base = has(`dest.${e.kind}`) ? t(`dest.${e.kind}`) : lower(elementName(e.kind));
+  const suffix = siteSuffix(ctx, e);
+  return suffix === null ? base : `${base} ${suffix}`;
+}
+
+/** «en la cocina común», «en la casa vecina del norte». */
+function inText(ctx: Ctx, e: Element): string {
+  const base = has(`in.${e.kind}`) ? t(`in.${e.kind}`) : lower(elementName(e.kind));
+  const suffix = siteSuffix(ctx, e);
+  return suffix === null ? base : `${base} ${suffix}`;
+}
+
+/** Si un elemento es un sitio de recados. */
+export function isPlace(ctx: Ctx, id: string): boolean {
+  const e = ctx.state.elements[id];
+  return e !== undefined && ctx.content.places?.[e.kind] !== undefined;
+}
+
+function errandText(kind: string, n: number): string {
+  const key = `errand.${kind}`;
+  if (!has(key)) return `${n} ${kind}`;
+  return t(n === 1 ? key : `${key}.many`, { n });
+}
+
+/** Recados agrupados por destino y tipo: «2 panes a la casa vecina del norte». */
+function errandLines(ctx: Ctx, errands: readonly Errand[]): string[] {
+  const groups: { to: string; kind: string; n: number }[] = [];
+  for (const r of errands) {
+    const g = groups.find((x) => x.to === r.to && x.kind === r.kind);
+    if (g === undefined) groups.push({ to: r.to, kind: r.kind, n: 1 });
+    else g.n += 1;
+  }
+  groups.sort((a, b) => (a.to === b.to ? a.kind.localeCompare(b.kind) : a.to.localeCompare(b.to)));
+  return groups.map((g) => {
+    const dest = ctx.state.elements[g.to];
+    return dest === undefined ? errandText(g.kind, g.n) : `${errandText(g.kind, g.n)} ${destText(ctx, dest)}`;
+  });
+}
+
+function bultos(errands: readonly Errand[]): number {
+  return errands.reduce((n, r) => n + r.size, 0);
+}
+
+/** Destinos de los recados que hay en un sitio (para dibujarlos al tocarlo). */
+export function errandDestinations(ctx: Ctx, place: string): string[] {
+  const out: string[] = [];
+  for (const r of errandsAt(ctx.state, place)) {
+    if (r.holder !== undefined && r.holder !== ctx.actor) continue;
+    if (!out.includes(r.to)) out.push(r.to);
+  }
+  return out.sort();
 }
 
 function costText(cost: Record<string, number>): string {
@@ -193,6 +293,24 @@ function quoteOf(ctx: Ctx, intent: OrderIntent): { quote: Quote | null; reason: 
   return { quote: quote(ctx.state, intent, ctx.content), reason: null };
 }
 
+let simulated: { key: string; events: Event[] } | null = null;
+
+/**
+ * Lo que pasaría si la orden se diera ahora: una copia del estado avanzada con lo sellado y con
+ * la orden, hasta `until`. Es el mismo sim, así que es exacto mientras no se den otras órdenes.
+ */
+function simulate(ctx: Ctx, intent: OrderIntent, until: number): Event[] {
+  const key = `${ctx.state.tick}|${until}|${ctx.content.hash}|${JSON.stringify(intent)}|${ctx.log?.length ?? 0}`;
+  if (simulated?.key === key) return simulated.events;
+  const copy = structuredClone(ctx.state);
+  const log = ctx.log ?? [];
+  const seq = log.reduce((m, o) => Math.max(m, o.seq), 0) + 1;
+  const order: Order = { seq, tick: copy.tick, actor: intent.actor, kind: intent.kind, args: intent.args };
+  const events = advance(copy, [...log.filter((o) => o.tick >= copy.tick), order], until, ctx.content);
+  simulated = { key, events };
+  return events;
+}
+
 function storeLines(ctx: Ctx, e: Element): string[] {
   const kind = ctx.content.elements[e.kind];
   const lines: string[] = [];
@@ -248,7 +366,8 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
     lines.push(t('info.beds', { used: workersOf(state, actor), beds: bedsOf(state, content, actor) }));
   }
   if (e.builtBy?.includes(actor) === true) lines.push(t('info.builtByYou'));
-  if (e.owner === undefined) lines.push(t('info.common'));
+  if (e.owner === undefined)
+    lines.push(has(`info.about.${e.kind}`) ? t(`info.about.${e.kind}`) : t('info.common'));
   const encargo = state.district.board?.encargo ?? null;
   const actions: ActionView[] = [];
   const w = worker?.id ?? '';
@@ -317,13 +436,36 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
       });
     }
   }
+  const place = content.places?.[e.kind];
+  const table = content.errands;
+  if (place !== undefined && table !== undefined && state.district.errands !== undefined) {
+    const here = errandsAt(state, e.id);
+    const open = here.filter((r) => r.holder === undefined);
+    const kept = here.filter((r) => r.holder === actor);
+    const pay = [...open, ...kept].reduce((n, r) => n + r.pay, 0);
+    const load = bultos(here);
+    lines.push(
+      load === 0
+        ? t('info.errandsNone')
+        : t('info.errands', { n: load, cap: place.capacity, pay: amount(table.currency, pay) }),
+    );
+    lines.push(...errandLines(ctx, open).map(cap));
+    for (const l of errandLines(ctx, kept)) lines.push(t('info.errandsYours', { what: l }));
+    actions.push({
+      id: 'route',
+      label: t('act.route'),
+      meta: t('meta.pickStops'),
+      enabled: worker !== null,
+      next: { kind: 'route', mobile: w, stops: [e.id] },
+    });
+  }
   const here = worker?.where.kind === 'at' && worker.where.element === e.id;
   if (!here && (kind?.category ?? 'fixed') !== 'site') {
     actions.push(
       orderAction(ctx, 'move', t('act.move'), { actor, kind: 'move', args: { mobile: w, to: e.id } }),
     );
   }
-  return { title: elementName(e.kind), lines, actions, worker, candidates: [] };
+  return { title: elementLabel(ctx, e), lines, actions, worker, candidates: [] };
 }
 
 function sectorSheet(ctx: Ctx, hex: HexKey, pos: Vec, worker: Mobile | null): SheetView | null {
@@ -365,6 +507,11 @@ function sectorSheet(ctx: Ctx, hex: HexKey, pos: Vec, worker: Mobile | null): Sh
   return { title, lines, actions, worker, candidates: [] };
 }
 
+/** Tick en que el obrero queda libre: el fin de la tarea o el de la última parada de la ruta. */
+export function jobEnd(job: Job): number {
+  return job.kind === 'route' ? (job.stops[job.stops.length - 1]?.leave ?? job.endTick) : job.endTick;
+}
+
 /** Qué está haciendo un obrero, en una línea. */
 export function workerStatus(ctx: Ctx, m: Mobile): string {
   const { state, content, nowMs } = ctx;
@@ -374,7 +521,17 @@ export function workerStatus(ctx: Ctx, m: Mobile): string {
       return t('worker.walking', { when: when(msOf(ctx, m.where.trip.arriveTick), nowMs) });
     return t('worker.idle');
   }
-  const ends = when(msOf(ctx, job.endTick), nowMs);
+  const ends = when(msOf(ctx, jobEnd(job)), nowMs);
+  if (job.kind === 'route') {
+    const stop = job.stops[job.index];
+    const e = stop === undefined ? undefined : state.elements[stop.at];
+    const p = { i: job.index + 1, n: job.stops.length, when: ends };
+    if (e === undefined) return t('worker.routeTo', { ...p, dest: '' });
+    if (m.where.kind === 'trip' || state.tick < job.startTick)
+      return t('worker.routeTo', { ...p, dest: destText(ctx, e) });
+    if (!workable(state, content, state.tick)) return t('worker.routeWait', { ...p, in: inText(ctx, e) });
+    return t('worker.routeAt', { ...p, in: inText(ctx, e) });
+  }
   const what = jobText(ctx, m);
   if (state.tick < job.startTick || m.where.kind === 'trip') return t('worker.goingTo', { what, when: ends });
   const needsLight = !(job.kind === 'deliver' && !job.work);
@@ -401,6 +558,8 @@ function jobText(ctx: Ctx, m: Mobile): string {
         ? t('job.deliverWork', { place })
         : t('job.deliver', { what: amount(job.resource, job.amount), place });
     }
+    case 'route':
+      return t('job.route');
   }
 }
 
@@ -411,8 +570,29 @@ function mobileSheet(ctx: Ctx, m: Mobile): SheetView {
   for (const r of Object.keys(m.cargo ?? {}).sort()) {
     lines.push(t('info.carrying', { what: amount(r, m.cargo?.[r] ?? 0) }));
   }
+  const load = carriedBy(state, m.id);
+  if (load.length > 0) {
+    lines.push(t('info.load', { n: bultos(load), cap: carryOf(content, m) }));
+    lines.push(...errandLines(ctx, load).map(cap));
+  }
   const actions: ActionView[] = [];
-  if (m.owner === actor && m.job === null) {
+  const job = m.job;
+  if (m.owner === actor && job?.kind === 'route' && job.index < job.stops.length - 1) {
+    const cancel = orderAction(ctx, 'route-cancel', t('act.routeCancel'), {
+      actor,
+      kind: 'cancel',
+      args: { mobile: m.id },
+    });
+    const stop = job.stops[job.index];
+    const e = stop === undefined ? undefined : state.elements[stop.at];
+    if (cancel.enabled && stop !== undefined && e !== undefined) {
+      cancel.meta = cap(
+        t('meta.staysAt', { in: inText(ctx, e), when: when(msOf(ctx, stop.leave), ctx.nowMs) }),
+      );
+    }
+    actions.push(cancel);
+  }
+  if (m.owner === actor && job === null) {
     const home = Object.keys(state.elements)
       .sort()
       .map((id) => state.elements[id])
@@ -423,8 +603,100 @@ function mobileSheet(ctx: Ctx, m: Mobile): SheetView {
         orderAction(ctx, 'home', t('act.home'), { actor, kind: 'move', args: { mobile: m.id, to: home.id } }),
       );
     }
+    if (content.errands !== undefined && state.district.errands !== undefined) {
+      actions.push({
+        id: 'route',
+        label: t('act.routeWorker'),
+        meta: t('meta.pickPlaces'),
+        enabled: true,
+        next: { kind: 'route', mobile: m.id, stops: [] },
+      });
+    }
+    const atPlace = m.where.kind === 'at' && m.where.element !== null && isPlace(ctx, m.where.element);
+    if (load.length > 0 && atPlace) {
+      const intent: OrderIntent = { actor, kind: 'unload', args: { mobile: m.id } };
+      const unload = orderAction(ctx, 'unload', t('act.unload'), intent);
+      if (unload.enabled) {
+        const dropped = simulate(ctx, intent, state.tick + 1).filter((ev) => ev.kind === 'errand_dropped');
+        unload.meta = cap(t('meta.drops', { n: dropped.length, m: load.length }));
+      }
+      actions.push(unload);
+    }
   }
   return { title: m.name ?? m.id, lines, actions, worker: m, candidates: [] };
+}
+
+/** Sitios que se pueden añadir a una ruta: todos menos el de la última parada, hasta el máximo. */
+function routeCandidates(ctx: Ctx, stops: readonly string[]): string[] {
+  const table = ctx.content.errands;
+  if (table === undefined || stops.length >= table.maxStops) return [];
+  const last = stops[stops.length - 1];
+  return placeIds(ctx.state, ctx.content).filter((id) => id !== last);
+}
+
+function routeSheet(ctx: Ctx, sel: Extract<Selection, { kind: 'route' }>): SheetView | null {
+  const { state, content, actor } = ctx;
+  const table = content.errands;
+  if (table === undefined) return null;
+  const m = state.mobiles[sel.mobile];
+  const intent: OrderIntent = { actor, kind: 'route', args: { mobile: sel.mobile, stops: sel.stops } };
+  const lines: string[] = [];
+  let go: ActionView;
+  if (sel.stops.length === 0) {
+    lines.push(t('route.pick'));
+    go = { id: 'route-go', label: t('act.routeGo'), meta: '', enabled: false, intent };
+  } else {
+    go = orderAction(ctx, 'route-go', t('act.routeGo'), intent);
+    const plan = go.enabled && m !== undefined ? planRoute(state, content, m, actor, sel.stops) : null;
+    const last = plan?.[plan.length - 1];
+    const events = plan !== null && last !== undefined ? simulate(ctx, intent, last.leave + 1) : [];
+    let delivered = 0;
+    let pay = 0;
+    sel.stops.forEach((id, i) => {
+      const e = state.elements[id];
+      const name = e === undefined ? id : elementLabel(ctx, e);
+      const leave = plan?.[i]?.leave;
+      const here = events.filter((ev) => ev.tick === leave);
+      const gives = here.filter((ev) => ev.kind === 'errand_delivered' && ev.mobile === sel.mobile);
+      const takes = here.filter((ev) => ev.kind === 'errand_picked' && ev.mobile === sel.mobile);
+      for (const ev of gives) if (ev.kind === 'errand_delivered') pay += ev.pay;
+      delivered += gives.length;
+      const does: string[] = [];
+      if (gives.length > 0) does.push(t('route.delivers', { n: gives.length }));
+      if (takes.length > 0) does.push(t('route.picks', { n: takes.length }));
+      lines.push(
+        does.length > 0
+          ? t('route.stopDoes', { i: i + 1, place: name, what: list(does) })
+          : t('route.stop', { i: i + 1, place: name }),
+      );
+    });
+    if (sel.stops.length < table.maxStops) lines.push(t('route.more'));
+    if (go.enabled) {
+      const tail =
+        delivered > 0
+          ? t('meta.delivers', { n: delivered, pay: amount(table.currency, pay) })
+          : t('meta.deliversNothing');
+      go = { ...go, meta: `${go.meta}, ${tail}` };
+    }
+  }
+  const actions: ActionView[] = [go];
+  if (sel.stops.length > 0) {
+    actions.push({
+      id: 'route-undo',
+      label: t('act.routeUndo'),
+      meta: '',
+      enabled: true,
+      next: { ...sel, stops: sel.stops.slice(0, -1) },
+    });
+  }
+  actions.push({ id: 'cancel', label: t('act.cancel'), meta: '', enabled: true, close: true });
+  return {
+    title: t('route.title'),
+    lines,
+    actions,
+    worker: m ?? null,
+    candidates: routeCandidates(ctx, sel.stops),
+  };
 }
 
 const NOT_A_CANDIDATE = [
@@ -522,9 +794,30 @@ export function sheetFor(ctx: Ctx, sel: Selection, preferred: string | null): Sh
       view = linkSheet(ctx, sel, chooseWorker(ctx, preferred, from?.pos ?? null));
       break;
     }
+    case 'route':
+      view = routeSheet(ctx, sel);
+      break;
   }
   if (view !== null && sel.kind !== 'mobile' && !needsWorker(view)) view.worker = null;
   return view;
+}
+
+/** Lo que la pizarra cuenta de los recados: qué hay en cada sitio y cuántos llevó cada uno. */
+export function errandBoard(ctx: Ctx): { places: string[]; delivered: Record<string, number> } | null {
+  const es = ctx.state.district.errands;
+  if (es === undefined) return null;
+  const places: { label: string; n: number }[] = [];
+  for (const id of placeIds(ctx.state, ctx.content)) {
+    const e = ctx.state.elements[id];
+    const here = errandsAt(ctx.state, id).filter((r) => r.holder === undefined);
+    if (e === undefined || here.length === 0) continue;
+    places.push({ label: elementLabel(ctx, e), n: here.length });
+  }
+  places.sort((a, b) => a.label.localeCompare(b.label));
+  return {
+    places: places.map((p) => `${p.label}: ${amount('recados', p.n)}`),
+    delivered: { ...es.delivered },
+  };
 }
 
 /** Existencias del jugador para la barra de arriba. */

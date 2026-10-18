@@ -122,5 +122,14 @@
   },
   "manantial": {
     "category": "resource"
+  },
+  "cocina_comun": {
+    "category": "fixed"
+  },
+  "dispensario": {
+    "category": "fixed"
+  },
+  "casa_vecina": {
+    "category": "fixed"
   }
 }

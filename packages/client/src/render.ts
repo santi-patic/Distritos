@@ -12,6 +12,7 @@ import {
   positionOf,
   type CompiledContent,
   type Element,
+  type Errand,
   type Flows,
   type HexKey,
   type Lattice,
@@ -57,6 +58,8 @@ const KIND_COLOR: Record<string, number> = {
   salto: PALETTE.agua,
   huerta: PALETTE.verde,
   almacen_comun: PALETTE.verde,
+  cocina_comun: PALETTE.verde,
+  casa_vecina: PALETTE.cal,
   madera: PALETTE.verde,
 };
 
@@ -111,6 +114,10 @@ export interface Highlight {
   encargo?: string;
   /** Punto donde se construiría (sector propio tocado). */
   point?: Vec;
+  /** Destinos de los recados del sitio tocado (`element`). */
+  destinations?: readonly string[];
+  /** Ruta que se está preparando: quién va y las paradas, en orden. */
+  route?: { mobile: string; stops: readonly string[] };
 }
 
 export interface DrawInput {
@@ -236,6 +243,73 @@ interface Drawn {
   x: number;
   y: number;
   r: number;
+}
+
+/** Un recado dibujado: cuántos bultos ocupa y si es propio (relleno) o del común (hueco). */
+interface Parcel {
+  size: number;
+  mine: boolean;
+}
+
+/**
+ * Recados como cuadritos de tiza puestos en fila a partir de `start`, en la dirección (ux, uy):
+ * un cuadrito por bulto, juntos los de un mismo recado.
+ */
+function parcels(
+  g: Graphics,
+  start: { x: number; y: number },
+  ux: number,
+  uy: number,
+  side: number,
+  items: readonly Parcel[],
+): void {
+  const gap = Math.max(1.5, side * 0.3);
+  const px = -uy;
+  const py = ux;
+  const h = side / 2;
+  let d = 0;
+  for (const it of items) {
+    const len = it.size * side + (it.size - 1) * gap;
+    const a = { x: start.x + ux * d, y: start.y + uy * d };
+    const b = { x: start.x + ux * (d + len), y: start.y + uy * (d + len) };
+    const pts = [
+      a.x + px * h,
+      a.y + py * h,
+      b.x + px * h,
+      b.y + py * h,
+      b.x - px * h,
+      b.y - py * h,
+      a.x - px * h,
+      a.y - py * h,
+    ];
+    if (it.mine) g.poly(pts).fill({ color: PALETTE.cal, alpha: 0.95 });
+    else g.poly(pts).stroke({ width: 1.5, color: PALETTE.cal, alpha: 0.9 });
+    d += len + gap * 1.8;
+  }
+}
+
+/** Largo de una fila de recados (para centrarla). */
+function parcelsLength(side: number, items: readonly Parcel[]): number {
+  const gap = Math.max(1.5, side * 0.3);
+  let d = 0;
+  items.forEach((it, i) => {
+    d += it.size * side + (it.size - 1) * gap + (i > 0 ? gap * 1.8 : 0);
+  });
+  return d;
+}
+
+/** Recados de la vista agrupados por dónde están: en un sitio (`at`) o con un obrero (`carrier`). */
+function errandsBy(v: PublicState): { at: Record<string, Errand[]>; carried: Record<string, Errand[]> } {
+  const at: Record<string, Errand[]> = {};
+  const carried: Record<string, Errand[]> = {};
+  const items = v.district.errands?.items ?? {};
+  for (const k of Object.keys(items).sort((a, b) => Number(a) - Number(b))) {
+    const r = items[k];
+    if (r === undefined) continue;
+    if (r.at !== null) (at[r.at] ??= []).push(r);
+    else if (r.carrier !== undefined) (carried[r.carrier] ??= []).push(r);
+  }
+  return { at, carried };
 }
 
 export class Renderer {
@@ -539,6 +613,7 @@ export class Renderer {
     g.clear();
     const drawn: Drawn[] = [];
     const battery = this.batteryFraction(v, content);
+    const { at } = errandsBy(v);
     const ids = Object.keys(v.elements).sort();
     for (const id of ids) {
       const el = v.elements[id];
@@ -547,6 +622,14 @@ export class Renderer {
       const r = this.elementRadius(v, el.level);
       drawn.push({ id, x: p.x, y: p.y, r });
       this.drawElement(g, el, p, r, content, battery);
+      const here = at[id];
+      if (here !== undefined && here.length > 0) {
+        // Debajo del sitio (los obreros paran encima): lo que espera a que alguien lo lleve.
+        const side = Math.max(4.5, r * 0.5);
+        const items = here.map((e) => ({ size: e.size, mine: e.holder === v.viewer }));
+        const y = p.y + r + 2 * Math.max(2, r * 0.22) + 6 + side / 2;
+        parcels(g, { x: p.x - parcelsLength(side, items) / 2, y }, 1, 0, side, items);
+      }
     }
     this.drawnElements = drawn;
   }
@@ -634,6 +717,7 @@ export class Renderer {
       g.stroke({ width: 2, color: PALETTE.cal, alpha: 0.9 });
       g.circle(p.x, p.y, 2).fill(PALETTE.cal);
     }
+    this.drawRoutes(g, input, around);
     if (highlight.encargo !== undefined) around(highlight.encargo, 14, 0.25 + 0.35 * pulse, true);
     for (const c of highlight.candidates ?? []) around(c, 9, 0.4 + 0.5 * pulse, true);
     if (highlight.element !== undefined) around(highlight.element, 9, 0.95, false);
@@ -648,6 +732,66 @@ export class Renderer {
         });
       }
     }
+  }
+
+  /**
+   * Rutas: la de cada obrero propio en marcha, tenue, por las paradas que le quedan; la que se
+   * está preparando, marcada y con sus paradas; y, con un sitio tocado, a dónde van sus recados.
+   */
+  private drawRoutes(
+    g: Graphics,
+    input: DrawInput,
+    around: (id: string, extra: number, alpha: number, dashedRing: boolean) => void,
+  ): void {
+    const { view: v, clock, highlight, animMs, reduceMotion } = input;
+    const scale = Math.max(0.6, Math.min(1.4, this.hexRadius(v) / 70));
+    const polyline = (pts: { x: number; y: number }[], offset: number): void => {
+      for (let i = 1; i < pts.length; i += 1) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        if (a !== undefined && b !== undefined) dashed(g, a, b, 6 * scale, 5 * scale, offset);
+      }
+    };
+    for (const id of Object.keys(v.mobiles).sort()) {
+      const m = v.mobiles[id];
+      if (m?.owner !== v.viewer || m.job?.kind !== 'route' || id === highlight.route?.mobile) continue;
+      const job = m.job;
+      const pts = [worldToScreen(this.camera, positionOf(m, clock.tick))];
+      for (const stop of job.stops.slice(job.index)) {
+        const e = v.elements[stop.at];
+        if (e !== undefined) pts.push(worldToScreen(this.camera, e.pos));
+      }
+      polyline(pts, 0);
+      g.stroke({ width: 1.5 * scale, color: PALETTE.cal, alpha: 0.35 });
+      for (const p of pts.slice(1)) g.circle(p.x, p.y, 2.5 * scale).fill({ color: PALETTE.cal, alpha: 0.45 });
+    }
+    const origin = highlight.element === undefined ? undefined : v.elements[highlight.element];
+    if (origin !== undefined && highlight.destinations !== undefined) {
+      const a = worldToScreen(this.camera, origin.pos);
+      for (const id of highlight.destinations) {
+        const e = v.elements[id];
+        if (e === undefined) continue;
+        dashed(g, a, worldToScreen(this.camera, e.pos), 3 * scale, 5 * scale, 0);
+        g.stroke({ width: 1.5 * scale, color: PALETTE.cal, alpha: 0.55 });
+        around(id, 6, 0.6, false);
+      }
+    }
+    const route = highlight.route;
+    if (route === undefined) return;
+    const m = v.mobiles[route.mobile];
+    const pts: { x: number; y: number }[] = [];
+    if (m !== undefined) pts.push(worldToScreen(this.camera, positionOf(m, clock.tick)));
+    for (const id of route.stops) {
+      const e = v.elements[id];
+      if (e !== undefined) pts.push(worldToScreen(this.camera, e.pos));
+    }
+    polyline(pts, reduceMotion ? 0 : (animMs / 1000) * 10 * scale);
+    g.stroke({ width: 2 * scale, color: PALETTE.cal, alpha: 0.85 });
+    const stops = m === undefined ? pts : pts.slice(1);
+    stops.forEach((p, i) => {
+      if (i === stops.length - 1) g.circle(p.x, p.y, 5 * scale).stroke({ width: 2, color: PALETTE.cal });
+      else g.circle(p.x, p.y, 3.5 * scale).fill(PALETTE.cal);
+    });
   }
 
   /** Posición dibujada de cada obrero: en viaje, interpolada; parado junto a un elemento, a un lado. */
@@ -695,6 +839,7 @@ export class Renderer {
     g.clear();
     const pos = this.mobilePositions(v, clock);
     const r = Math.max(6, Math.min(13, this.hexRadius(v) * 0.11));
+    const { carried } = errandsBy(v);
     const drawn: Drawn[] = [];
     for (const [id, p] of Object.entries(pos)) {
       const m = v.mobiles[id];
@@ -728,6 +873,21 @@ export class Renderer {
       if (cargo !== undefined) {
         g.circle(p.x - r * 1.2 * Math.cos(angle), p.y - r * 1.2 * Math.sin(angle), r * 0.45).fill(
           RESOURCE_COLOR[cargo] ?? PALETTE.piedra,
+        );
+      }
+      const load = carried[id];
+      if (load !== undefined && load.length > 0) {
+        // Lo que lleva, en fila detrás del triángulo.
+        const ux = -Math.cos(angle);
+        const uy = -Math.sin(angle);
+        const d = r * 1.25 + (cargo === undefined ? 0 : r * 0.9);
+        parcels(
+          g,
+          { x: p.x + ux * d, y: p.y + uy * d },
+          ux,
+          uy,
+          Math.max(3.5, r * 0.5),
+          load.map((e) => ({ size: e.size, mine: e.holder === v.viewer })),
         );
       }
       if (id === highlight.mobile) {

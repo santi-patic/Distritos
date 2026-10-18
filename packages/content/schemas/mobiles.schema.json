@@ -57,6 +57,10 @@
       "hungryPermille": {
         "$ref": "common.schema.json#/definitions/permille",
         "description": "Rendimiento en las tareas cuando no ha comido."
+      },
+      "carry": {
+        "$ref": "common.schema.json#/definitions/nonNegInt",
+        "description": "Bultos de recados que lleva a la vez."
       }
     }
   }

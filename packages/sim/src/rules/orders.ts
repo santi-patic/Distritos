@@ -19,6 +19,14 @@ import type { SimState } from '../types/state.js';
 import { isBool, isRecord, isStr } from './args.js';
 import { startDeliver, validateDeliver } from './board.js';
 import { startBuild, validateBuild } from './build.js';
+import {
+  applyCancel,
+  applyUnload,
+  startRoute,
+  validateCancel,
+  validateRoute,
+  validateUnload,
+} from './errands.js';
 import { hasRevealedNeighbor } from './fog.js';
 import { available, pay, put, take } from './inventory.js';
 import { startLink, validateLink } from './links.js';
@@ -141,6 +149,12 @@ export function validate(state: SimState, intent: OrderIntent, content: Compiled
       return validateHire(state, content, intent.actor, intent.args);
     case 'deliver':
       return validateDeliver(state, content, intent.actor, intent.args);
+    case 'route':
+      return validateRoute(state, content, intent.actor, intent.args);
+    case 'cancel':
+      return validateCancel(state, intent.actor, intent.args);
+    case 'unload':
+      return validateUnload(state, content, intent.actor, intent.args);
     case 'skip': {
       const { ticks } = intent.args as OrderArgs['skip'];
       return Number.isSafeInteger(ticks) && ticks > 0 ? null : 'bad_amount';
@@ -205,6 +219,15 @@ function execute(
       return;
     case 'deliver':
       startDeliver(state, content, order, events);
+      return;
+    case 'route':
+      startRoute(state, content, order, events);
+      return;
+    case 'cancel':
+      applyCancel(state, order, events);
+      return;
+    case 'unload':
+      applyUnload(state, content, order, events);
       return;
     case 'skip': {
       const { ticks } = order.args as OrderArgs['skip'];

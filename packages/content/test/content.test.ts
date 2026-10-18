@@ -5,6 +5,7 @@ import {
   createScene,
   hashOf,
   nextLightChange,
+  quote,
   rateDen,
   replay,
   resolveFlows,
@@ -111,8 +112,8 @@ describe('tablas del repositorio', () => {
   it('el sim arranca con ellas: la casa de F1 cableada, la tierra común y la pizarra', () => {
     const c = content();
     const s = createScene(casa, c);
-    expect(Object.keys(s.map.sectors)).toHaveLength(37 + 3);
-    expect(Object.keys(s.elements)).toHaveLength(6 + 2);
+    expect(Object.keys(s.map.sectors)).toHaveLength(37 + 6);
+    expect(Object.keys(s.elements)).toHaveLength(6 + 7);
     expect(Object.keys(s.mobiles)).toHaveLength(2);
     expect(Object.keys(s.links)).toHaveLength(4);
     expect(s.elements.e4?.store).toEqual({ energia: 1_800_000 });
@@ -132,6 +133,22 @@ describe('tablas del repositorio', () => {
     expect(later.map.sectors['0,1']?.status).toBe('hidden');
     advance(later, log, 234_000 + 108_000 + 100, c);
     expect(later.map.sectors['0,1']?.status).toBe('revealed');
+  });
+
+  it('recados: los sitios del común empiezan con los suyos y una ruta tiene horario conocido', () => {
+    const c = content();
+    const s = createScene({ ...casa, dayOffset: 10 * 36_000 }, c);
+    const errands = Object.values(s.district.errands?.items ?? {});
+    // Cocina 2, almacén 2, dispensario 1, punto de carga 1; las casas vecinas empiezan vacías.
+    expect(errands).toHaveLength(6);
+    expect(c.errands).toMatchObject({ stopTicks: 9_000, firstStopTicks: 600, maxStops: 8 });
+    expect(c.places?.cocina_comun).toMatchObject({ capacity: 4, everyTicks: 144_000 });
+    expect(c.mobiles.obrero_peon?.carry).toBe(4);
+    const route = { actor: 'a', kind: 'route' as const, args: { mobile: 'm1', stops: ['e8', 'e9'] } };
+    const first = quote(s, route, c);
+    // A las 10:00 y la primera vez: dos paradas de 1 min, más los viajes (segundos).
+    expect(first?.work).toBe(2 * 600);
+    expect((first?.end ?? 0) - s.tick).toBeLessThan(2 * 600 + 600);
   });
 
   it('la plantilla de F0 sigue creando escena', () => {
@@ -207,6 +224,18 @@ describe('el compilador rechaza', () => {
     const w = clone<RawTables>(tables);
     w.archetypes.finca_prado!.start.links![0]!.b = 99;
     expect(() => compile(w)).toThrow(/fuera de la dotación/);
+  });
+
+  it('recados con destinos que no son sitios, o sitios que generan sin decir cada cuánto', () => {
+    const t = clone<RawTables>(tables);
+    t.recados.kinds.pan!.to = ['casa'];
+    expect(() => compile(t)).toThrow(/no es un sitio de recados/);
+    const u = clone<RawTables>(tables);
+    u.places.cocina_comun!.makes = [{ kind: 'tarta', weight: 1 }];
+    expect(() => compile(u)).toThrow(/recado desconocido tarta/);
+    const w = clone<RawTables>(tables);
+    delete w.places.cocina_comun!.every;
+    expect(() => compile(w)).toThrow(/cada cuánto/);
   });
 
   it('flujos que no se pueden resolver', () => {

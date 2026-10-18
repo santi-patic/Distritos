@@ -14,6 +14,8 @@ import builds from '../tables/builds.json' with { type: 'json' };
 import links from '../tables/links.json' with { type: 'json' };
 import hires from '../tables/hires.json' with { type: 'json' };
 import board from '../tables/board.json' with { type: 'json' };
+import places from '../tables/places.json' with { type: 'json' };
+import recados from '../tables/recados.json' with { type: 'json' };
 
 export const tables: RawTables = {
   scenes: scenes as RawTables['scenes'],
@@ -29,4 +31,6 @@ export const tables: RawTables = {
   links: links,
   hires: hires,
   board: board,
+  places: places,
+  recados: recados,
 };

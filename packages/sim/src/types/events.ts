@@ -34,6 +34,12 @@ export type Event =
   | { tick: Tick; kind: 'cleaned'; element: ElementId }
   | { tick: Tick; kind: 'cycled'; element: ElementId; wear: Permille }
   | { tick: Tick; kind: 'encargo'; id: Int; encargo: KindId }
+  | { tick: Tick; kind: 'errand_made'; errand: Int; at: ElementId; to: ElementId }
+  | { tick: Tick; kind: 'errand_picked'; errand: Int; mobile: MobileId }
+  | { tick: Tick; kind: 'errand_delivered'; errand: Int; mobile: MobileId; actor: ActorId; pay: Int }
+  | { tick: Tick; kind: 'errand_dropped'; errand: Int; at: ElementId }
+  | { tick: Tick; kind: 'errand_expired'; errand: Int }
+  | { tick: Tick; kind: 'route_cancelled'; mobile: MobileId }
   | {
       tick: Tick;
       kind: 'delivered';

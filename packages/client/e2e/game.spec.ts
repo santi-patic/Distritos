@@ -1,7 +1,8 @@
 /**
  * La página de juego en un Chromium de móvil, con el reloj del navegador bajo control: arranca
  * con la casa encuadrada, abre un sector con un obrero, guarda el registro en el navegador y lo
- * repite al volver, cambia de idioma, exporta la partida y la vuelve a cargar comprobando el hash.
+ * repite al volver, hace una ruta de recados por el común, cambia de idioma, exporta la partida
+ * y la vuelve a cargar comprobando el hash.
  */
 
 import { readFileSync } from 'node:fs';
@@ -16,10 +17,15 @@ test.use({
 });
 
 interface Hook {
-  state: { tick: number; map: { sectors: Record<string, { status: string }> } };
-  save: { log: unknown[]; params: { dayOffset?: number } };
+  state: {
+    tick: number;
+    map: { sectors: Record<string, { status: string }> };
+    elements: Record<string, { kind: string }>;
+  };
+  save: { log: { kind: string; args: unknown }[]; params: { dayOffset?: number } };
   hash: () => { tick: number; hash: string };
   screenOf: (what: { element?: string; mobile?: string; sector?: string }) => { x: number; y: number } | null;
+  focus: (element: string) => void;
 }
 
 async function boot(page: Page, time = '2026-10-19T10:00:00+02:00'): Promise<void> {
@@ -97,6 +103,46 @@ test('la pizarra del común enseña el encargo y manda a alguien', async ({ page
   await expect(page.locator('#toast')).toContainText('Orden dada');
   await page.clock.runFor(10_000);
   await expect(page.locator('#stocks')).toContainText('2');
+});
+
+/** Centra la cámara en un elemento y lo toca (los sitios del común quedan fuera del encuadre de la casa). */
+async function tapElement(page: Page, id: string): Promise<void> {
+  await page.evaluate((e) => {
+    (window as unknown as { distritos: Hook }).distritos.focus(e);
+  }, id);
+  await page.clock.runFor(100);
+  await tapOn(page, { element: id });
+}
+
+test('recados: una ruta por el común recoge, entrega y cobra', async ({ page }) => {
+  await boot(page);
+  const ids = await hook(page, (h) =>
+    Object.fromEntries(Object.entries(h.state.elements).map(([id, e]) => [e.kind, id])),
+  );
+  const almacen = ids.almacen_comun ?? '';
+  const cocina = ids.cocina_comun ?? '';
+  await tapElement(page, almacen);
+  const sheet = page.locator('#sheet');
+  await expect(sheet).toContainText('1 haz de leña a la cocina común');
+  await page.locator('[data-action="route"]').click();
+  await page.clock.runFor(300);
+  await expect(sheet).toContainText('Toca otro sitio para añadir una parada');
+  await tapElement(page, cocina);
+  await expect(sheet).toContainText('1. Almacén común: recoge 1');
+  await expect(sheet).toContainText('2. Cocina común: entrega 1');
+  const go = page.locator('[data-action="route-go"]');
+  await expect(go).toContainText('2 min, termina a las 10:02, entrega 1, cobra 2 Águilas');
+  await go.click();
+  await page.clock.runFor(300);
+  expect(await hook(page, (h) => h.save.log.map((o) => o.kind))).toEqual(['route']);
+
+  await page.clock.fastForward(3 * 60_000);
+  await page.clock.runFor(500);
+  await expect(page.locator('.stock.eagles .v')).toHaveText('2');
+  await page.click('#btn-board');
+  await page.clock.runFor(300);
+  await expect(page.locator('#board')).toContainText('Recados entregados');
+  await expect(page.locator('#board')).toContainText('Tu finca: 1');
 });
 
 test('gallego por claves', async ({ page }) => {

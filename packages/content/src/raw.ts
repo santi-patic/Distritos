@@ -86,6 +86,7 @@ export interface RawMobile {
   names: string[];
   eats?: { resource: string; perDay: number };
   hungryPermille?: number;
+  carry?: number;
 }
 
 export interface RawTerrain {
@@ -153,6 +154,22 @@ export interface RawBoard {
   encargos: RawEncargo[];
 }
 
+export interface RawPlace {
+  capacity: number;
+  start?: number;
+  makes?: Weighted[];
+  /** Segundos entre dos recados generados. */
+  every?: number;
+}
+
+export interface RawErrands {
+  currency: string;
+  stopSeconds: number;
+  firstStopSeconds?: number;
+  maxStops: number;
+  kinds: Record<string, { to: string[]; size: number; pay: number; expiresSeconds?: number }>;
+}
+
 export interface RawTables {
   scenes: RawScenes;
   archetypes: Record<string, RawArchetype>;
@@ -167,6 +184,8 @@ export interface RawTables {
   links: Record<string, RawLink>;
   hires: Record<string, RawHire>;
   board: RawBoard;
+  places: Record<string, RawPlace>;
+  recados: RawErrands;
 }
 
 export const TABLE_NAMES = [
@@ -183,5 +202,7 @@ export const TABLE_NAMES = [
   'links',
   'hires',
   'board',
+  'places',
+  'recados',
 ] as const;
 export type TableName = (typeof TABLE_NAMES)[number];

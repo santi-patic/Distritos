@@ -14,6 +14,8 @@ import builds from '../schemas/builds.schema.json' with { type: 'json' };
 import links from '../schemas/links.schema.json' with { type: 'json' };
 import hires from '../schemas/hires.schema.json' with { type: 'json' };
 import board from '../schemas/board.schema.json' with { type: 'json' };
+import places from '../schemas/places.schema.json' with { type: 'json' };
+import recados from '../schemas/recados.schema.json' with { type: 'json' };
 
 export const schemas = {
   common,
@@ -30,4 +32,6 @@ export const schemas = {
   links,
   hires,
   board,
+  places,
+  recados,
 } as const;
