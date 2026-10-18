@@ -63,6 +63,10 @@
             "$ref": "common.schema.json#/definitions/kindId"
           }
         }
+      },
+      "jornada": {
+        "type": "boolean",
+        "description": "P9: dura lo que quede de luz de trabajo al llegar (de noche, la jornada siguiente), o menos si antes se llena donde va lo producido; gives es lo que rinde cada seconds de trabajo. La primera vez (firstSeconds) sigue siendo corta y fija."
       }
     }
   }

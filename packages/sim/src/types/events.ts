@@ -40,6 +40,8 @@ export type Event =
   | { tick: Tick; kind: 'errand_dropped'; errand: Int; at: ElementId }
   | { tick: Tick; kind: 'errand_expired'; errand: Int }
   | { tick: Tick; kind: 'route_cancelled'; mobile: MobileId }
+  | { tick: Tick; kind: 'opening'; hex: HexKey; by: ActorId; endTick: Tick }
+  | { tick: Tick; kind: 'renamed'; target: string; name: string }
   | {
       tick: Tick;
       kind: 'delivered';

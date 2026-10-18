@@ -60,7 +60,7 @@ test('arranca con la casa, la hora del jugador y la etiqueta del hash con su tic
   expect(offset).toBeGreaterThanOrEqual(10 * 36_000);
   expect(offset).toBeLessThan(10 * 36_000 + 100);
   await expect(page.locator('.worker')).toHaveCount(2);
-  await expect(page.locator('#stocks')).toContainText('0,50 kWh');
+  await expect(page.locator('#stocks')).toContainText('1,00 kWh');
 });
 
 test('abrir un sector: presupuesto, orden, apertura y puesta al día al volver', async ({ page }) => {
@@ -68,13 +68,14 @@ test('abrir un sector: presupuesto, orden, apertura y puesta al día al volver',
   await tapOn(page, { sector: '1,0' });
   const reveal = page.locator('[data-action="reveal"]');
   await expect(reveal).toContainText('Abrir el sector');
-  await expect(reveal).toContainText('0,10 kWh, 5 min, termina a las 10:05');
+  // La primera apertura, 30 s desde que llega el obrero (P14).
+  await expect(reveal).toContainText('0,10 kWh, se abre a las 10:00');
   await reveal.click();
   await page.clock.runFor(300);
   await expect(page.locator('#toast')).toContainText('Orden dada');
   expect(await hook(page, (h) => h.save.log.length)).toBe(1);
 
-  await page.clock.fastForward(6 * 60_000);
+  await page.clock.fastForward(60_000);
   await page.clock.runFor(500);
   expect(await hook(page, (h) => h.state.map.sectors['1,0']?.status)).toBe('revealed');
   const before = await hook(page, (h) => h.hash());
@@ -89,20 +90,36 @@ test('abrir un sector: presupuesto, orden, apertura y puesta al día al volver',
   expect(after.tick).toBeGreaterThanOrEqual(before.tick);
 });
 
-test('la pizarra del común enseña el encargo y manda a alguien', async ({ page }) => {
+test('la pizarra del común cuenta los recados del común y los que esperan en casa', async ({ page }) => {
   await boot(page);
   await page.click('#btn-board');
   await page.clock.runFor(300);
   const board = page.locator('#board');
   await expect(board).toContainText('Pizarra del común');
-  await expect(board).toContainText('2,00 kWh en el punto de carga');
-  const send = board.locator('[data-action="deliver"]');
-  await expect(send).toContainText('lleva 0,50 kWh, cobra 2 Águilas');
-  await send.click();
+  // El encargo del día es ya un recado que sale de casa (P15).
+  await expect(board).toContainText('Recados esperando en el común: 12. En tu casa: 1');
+  await expect(board).toContainText('Almacén común: 4 recados');
+});
+
+test('nombres: la casa se renombra desde su hoja y el nombre queda en la partida', async ({ page }) => {
+  await boot(page);
+  await tapOn(page, { element: 'e1' });
+  const sheet = page.locator('#sheet');
+  // La casa es sitio de recados: el suyo, con su pictograma.
+  await expect(sheet.locator('li.errand .picto')).toHaveCount(1);
+  await expect(sheet).toContainText('3 raciones de casa al almacén común');
+  await page.locator('[data-action="rename"]').click();
+  await page.clock.runFor(200);
+  const input = sheet.locator('input.name-input');
+  await expect(input).toHaveAttribute('placeholder', 'Casa');
+  await input.fill('  A Casa do Monte ');
+  await page.locator('[data-action="rename-save"]').click();
   await page.clock.runFor(300);
-  await expect(page.locator('#toast')).toContainText('Orden dada');
-  await page.clock.runFor(10_000);
-  await expect(page.locator('#stocks')).toContainText('2');
+  expect(await hook(page, (h) => h.save.log.map((o) => o.args))).toEqual([
+    { element: 'e1', name: 'A Casa do Monte' },
+  ]);
+  await tapOn(page, { element: 'e1' });
+  await expect(sheet.locator('h2')).toHaveText('A Casa do Monte');
 });
 
 /** Centra la cámara en un elemento y lo toca (los sitios del común quedan fuera del encuadre de la casa). */
@@ -123,26 +140,26 @@ test('recados: una ruta por el común recoge, entrega y cobra', async ({ page })
   const cocina = ids.cocina_comun ?? '';
   await tapElement(page, almacen);
   const sheet = page.locator('#sheet');
-  await expect(sheet).toContainText('1 haz de leña a la cocina común');
+  await expect(sheet).toContainText('A la cocina común ×3');
   await page.locator('[data-action="route"]').click();
   await page.clock.runFor(300);
   await expect(sheet).toContainText('Toca otro sitio para añadir una parada');
   await tapElement(page, cocina);
-  await expect(sheet).toContainText('1. Almacén común: recoge 1');
-  await expect(sheet).toContainText('2. Cocina común: entrega 1');
+  await expect(sheet).toContainText('1. Almacén común: recoge 2');
+  await expect(sheet).toContainText('2. Cocina común: entrega 2');
   const go = page.locator('[data-action="route-go"]');
-  await expect(go).toContainText('2 min, termina a las 10:02, entrega 1, cobra 2 Águilas');
+  await expect(go).toContainText('2 min, termina a las 10:02, entrega 2, cobra 4 Águilas');
   await go.click();
   await page.clock.runFor(300);
   expect(await hook(page, (h) => h.save.log.map((o) => o.kind))).toEqual(['route']);
 
   await page.clock.fastForward(3 * 60_000);
   await page.clock.runFor(500);
-  await expect(page.locator('.stock.eagles .v')).toHaveText('2');
+  await expect(page.locator('.stock.eagles .v')).toHaveText('4');
   await page.click('#btn-board');
   await page.clock.runFor(300);
   await expect(page.locator('#board')).toContainText('Recados entregados');
-  await expect(page.locator('#board')).toContainText('Tu finca: 1');
+  await expect(page.locator('#board')).toContainText('Tu finca: 2');
 });
 
 test('gallego por claves', async ({ page }) => {
@@ -156,7 +173,7 @@ test('gallego por claves', async ({ page }) => {
   await page.keyboard.press('Escape');
   await tapOn(page, { sector: '1,0' });
   await expect(page.locator('[data-action="reveal"]')).toContainText('Abrir o sector');
-  await expect(page.locator('[data-action="reveal"]')).toContainText('0,10 kWh, 5 min, remata ás 10:05');
+  await expect(page.locator('[data-action="reveal"]')).toContainText('0,10 kWh, ábrese ás 10:00');
 });
 
 test('exportar la partida y cargarla en otro navegador da el mismo hash', async ({ page, browser }) => {

@@ -9,7 +9,7 @@
     "reveal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resource", "costJ", "seconds"],
+      "required": ["resource", "costJ"],
       "properties": {
         "resource": {
           "$ref": "common.schema.json#/definitions/kindId"
@@ -25,6 +25,26 @@
         "firstSeconds": {
           "$ref": "common.schema.json#/definitions/seconds",
           "description": "La primera vez del jugador (entrada fácil)."
+        },
+        "curveSeconds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "common.schema.json#/definitions/seconds"
+          },
+          "description": "P14: duración de cada apertura en el orden en que el jugador las empieza; pasado el final, la última. El obrero va a empezarla y queda libre; corre de día y de noche."
+        }
+      },
+      "description": "Abrir un sector: trabajando seconds al llegar (y firstSeconds la primera vez), o con la curva curveSeconds (P14). Uno de los dos."
+    },
+    "name": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxLength"],
+      "description": "P16: nombres que pone el jugador a lugares y obreros.",
+      "properties": {
+        "maxLength": {
+          "$ref": "common.schema.json#/definitions/posInt"
         }
       }
     }

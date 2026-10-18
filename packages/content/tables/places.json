@@ -1,18 +1,37 @@
 {
+  "casa": {
+    "capacity": 2,
+    "start": 1,
+    "makes": [
+      {
+        "kind": "energia_casa",
+        "weight": 1
+      },
+      {
+        "kind": "comida_casa",
+        "weight": 1
+      },
+      {
+        "kind": "obra",
+        "weight": 1
+      }
+    ],
+    "every": 43200
+  },
   "cocina_comun": {
-    "capacity": 4,
-    "start": 2,
+    "capacity": 8,
+    "start": 4,
     "makes": [
       {
         "kind": "pan",
         "weight": 1
       }
     ],
-    "every": 14400
+    "every": 7200
   },
   "almacen_comun": {
-    "capacity": 6,
-    "start": 2,
+    "capacity": 12,
+    "start": 4,
     "makes": [
       {
         "kind": "lena",
@@ -23,38 +42,42 @@
         "weight": 1
       }
     ],
-    "every": 21600
+    "every": 10800
   },
   "dispensario": {
-    "capacity": 3,
-    "start": 1,
+    "capacity": 6,
+    "start": 2,
     "makes": [
       {
         "kind": "medicinas",
         "weight": 1
       }
     ],
-    "every": 28800
+    "every": 14400
   },
   "punto_carga": {
-    "capacity": 3,
-    "start": 1,
+    "capacity": 6,
+    "start": 2,
     "makes": [
       {
         "kind": "bateria_carga",
         "weight": 1
       }
     ],
-    "every": 28800
+    "every": 14400
   },
   "casa_vecina": {
-    "capacity": 2,
+    "capacity": 4,
     "makes": [
       {
         "kind": "cesta",
+        "weight": 2
+      },
+      {
+        "kind": "clases",
         "weight": 1
       }
     ],
-    "every": 43200
+    "every": 21600
   }
 }

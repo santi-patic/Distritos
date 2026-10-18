@@ -1,38 +1,96 @@
 {
   "currency": "eagles",
-  "stopSeconds": 900,
+  "stopSeconds": 300,
   "firstStopSeconds": 60,
   "maxStops": 8,
+  "types": {
+    "comida": {
+      "class": "llevar"
+    },
+    "energia": {
+      "class": "llevar"
+    },
+    "combustible": {
+      "class": "llevar"
+    },
+    "salud": {
+      "class": "llevar"
+    },
+    "trabajo": {
+      "class": "hacer"
+    },
+    "educacion": {
+      "class": "hacer"
+    }
+  },
   "kinds": {
     "pan": {
       "to": ["casa_vecina", "dispensario"],
       "size": 1,
-      "pay": 1
+      "pay": 1,
+      "type": "comida"
     },
     "lena": {
       "to": ["cocina_comun"],
       "size": 2,
-      "pay": 2
+      "pay": 2,
+      "type": "combustible"
     },
     "medicinas": {
       "to": ["casa_vecina"],
       "size": 1,
-      "pay": 2
+      "pay": 2,
+      "type": "salud"
     },
     "conservas": {
       "to": ["dispensario", "casa_vecina"],
       "size": 1,
-      "pay": 1
+      "pay": 1,
+      "type": "comida"
     },
     "bateria_carga": {
       "to": ["casa_vecina", "cocina_comun"],
       "size": 2,
-      "pay": 2
+      "pay": 2,
+      "type": "energia"
     },
     "cesta": {
       "to": ["cocina_comun"],
       "size": 1,
-      "pay": 1
+      "pay": 1,
+      "type": "comida"
+    },
+    "energia_casa": {
+      "to": ["punto_carga"],
+      "size": 2,
+      "pay": 3,
+      "type": "energia",
+      "takes": {
+        "energia": 1800000
+      }
+    },
+    "comida_casa": {
+      "to": ["almacen_comun"],
+      "size": 1,
+      "pay": 4,
+      "type": "comida",
+      "takes": {
+        "comida": 3
+      }
+    },
+    "obra": {
+      "to": ["almacen_comun"],
+      "size": 0,
+      "pay": 6,
+      "type": "trabajo",
+      "workSeconds": 7200
+    },
+    "clases": {
+      "to": ["cocina_comun"],
+      "size": 0,
+      "pay": 3,
+      "type": "educacion",
+      "workSeconds": 3600
     }
   }
 }

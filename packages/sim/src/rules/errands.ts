@@ -1,6 +1,6 @@
 /**
  * Recados entre sitios y rutas. Diseño de la casa §17 (opción B, decisión del autor del 18 oct
- * 2026).
+ * 2026) y recados por tipo (P15, 18 oct por la tarde).
  *
  * Los sitios del común y las casas vecinas que lleva el juego generan recados con destino a
  * otros sitios, hasta su tope; lleno, un sitio deja de generar y nada se pierde por ausencia.
@@ -10,11 +10,19 @@
  * entero se fija al dar la orden. Cancelar la ruta la acaba en la parada a la que va o en la
  * que está; allí, parado, el obrero puede dejar lo que lleva para que lo recoja otro. Cada
  * recado paga lo suyo a quien lo recoge cuando lo entrega (P1), aunque haya pasado por otro sitio.
+ *
+ * P15: los recados de llevar ocupan carga; los de hacer no, y el obrero trabaja su rato en la
+ * parada del destino. Como el horario se fija al dar la orden, los de hacer se comprometen
+ * entonces: la ruta reserva los que están en sus paradas y van a una parada posterior, y suma
+ * su trabajo a la parada donde se hacen. Un sitio con dueño (la casa del jugador) genera
+ * recados suyos, que solo recoge él; los de llevar de casa sacan de sus existencias lo que
+ * llevan al recogerlos (el encargo del día pasa a ser esto).
  */
 
+import { min } from '../arith.js';
 import { canEnter } from '../access.js';
 import { workEnd } from '../calendar.js';
-import { compareStrings, get, removeKey, sortedKeys } from '../iter.js';
+import { at, compareStrings, get, removeKey, sortedKeys } from '../iter.js';
 import { nextInt, pickWeighted } from '../rng.js';
 import type { CompiledContent, ErrandTable, PlaceKind } from '../types/content.js';
 import type { Event } from '../types/events.js';
@@ -22,7 +30,8 @@ import type { ActorId, ElementId, Int, Tick } from '../types/ids.js';
 import type { Order, OrderArgs, Reject } from '../types/orders.js';
 import type { Element, Errand, Errands, Mobile, RouteJob, RouteStop, SimState } from '../types/state.js';
 import { isRecord, isStr } from './args.js';
-import { put } from './inventory.js';
+import { capacityOf, levelOf, setLevel } from './elements.js';
+import { lacking, put, take } from './inventory.js';
 import { arrivalTick, positionOf, speedBetween } from './movement.js';
 import { baseWork, effectiveWork, markStarted, ownFreeMobile, ownMobile } from './work.js';
 
@@ -42,11 +51,21 @@ function errandList(es: Errands): Errand[] {
   return out.sort((a, b) => a.id - b.id);
 }
 
+/** Lo que ocupa un recado en el tope de un sitio: sus bultos, o uno si es de hacer. */
+function bulk(r: Errand): Int {
+  return r.size > 0 ? r.size : 1;
+}
+
 /** Bultos que hay en un sitio (generados o dejados). */
 function loadAt(es: Errands, place: ElementId): Int {
   let n = 0;
-  for (const r of errandList(es)) if (r.at === place) n += r.size;
+  for (const r of errandList(es)) if (r.at === place) n += bulk(r);
   return n;
+}
+
+/** Si un actor puede llevarse un recado: es del común o ya es suyo. */
+function mayTake(r: Errand, actor: ActorId): boolean {
+  return r.holder === undefined || r.holder === actor;
 }
 
 /** Recados que lleva un obrero. */
@@ -90,8 +109,12 @@ function generateAt(
   const ek = makes[i]?.kind;
   const spec = ek === undefined ? undefined : table.kinds[ek];
   if (ek === undefined || spec === undefined) return;
-  if (loadAt(es, place.id) + spec.size > kind.capacity) return;
-  const targets = places(state, content).filter((p) => p.id !== place.id && spec.to.includes(p.kind));
+  if (loadAt(es, place.id) + (spec.size > 0 ? spec.size : 1) > kind.capacity) return;
+  // A otro sitio del tipo pedido: del común, o del mismo dueño que el sitio que lo genera.
+  const targets = places(state, content).filter(
+    (p) =>
+      p.id !== place.id && spec.to.includes(p.kind) && (p.owner === undefined || p.owner === place.owner),
+  );
   if (targets.length === 0) return;
   const [j, r2] = nextInt(state.rng, targets.length);
   state.rng = r2;
@@ -99,6 +122,9 @@ function generateAt(
   if (to === undefined) return;
   const errand: Errand = { id: es.next, kind: ek, to: to.id, size: spec.size, pay: spec.pay, at: place.id };
   if (spec.expiresTicks !== undefined) errand.expires = state.tick + spec.expiresTicks;
+  if (place.owner !== undefined) errand.holder = place.owner;
+  if (spec.work !== undefined) errand.work = spec.work;
+  if (spec.takes !== undefined) errand.takes = { ...spec.takes };
   es.items[String(errand.id)] = errand;
   es.next += 1;
   events.push({ tick: state.tick, kind: 'errand_made', errand: errand.id, at: place.id, to: to.id });
@@ -138,11 +164,15 @@ export function processErrands(state: SimState, content: CompiledContent, events
     es.nextAt[id] = state.tick + kind.everyTicks;
   }
   for (const r of errandList(es)) {
-    if (r.expires === undefined || r.expires > state.tick || r.holder !== undefined || r.at === null)
-      continue;
+    if (!expiring(r) || (r.expires ?? 0) > state.tick) continue;
     removeKey(es.items, String(r.id));
     events.push({ tick: state.tick, kind: 'errand_expired', errand: r.id });
   }
+}
+
+/** Caduca lo que tiene plazo, está en un sitio, nadie ha recogido y ninguna ruta ha reservado. */
+function expiring(r: Errand): boolean {
+  return r.expires !== undefined && r.holder === undefined && r.at !== null && r.assigned === undefined;
 }
 
 /** Próximo tick ≥ el actual con una generación o una caducidad, o null. */
@@ -159,7 +189,7 @@ export function nextErrandEvent(state: SimState): Tick | null {
     if (t !== undefined) consider(t);
   }
   for (const r of errandList(es)) {
-    if (r.expires !== undefined && r.holder === undefined && r.at !== null) consider(r.expires);
+    if (expiring(r) && r.expires !== undefined) consider(r.expires);
   }
   return next;
 }
@@ -178,11 +208,96 @@ export function stopWork(state: SimState, content: CompiledContent, m: Mobile, a
   return effectiveWork(content, m, baseWork(state, actor, ROUTE_WORK, spec));
 }
 
+/** Un recado de hacer que una ruta se compromete a hacer: dónde lo recoge y dónde se hace. */
+export interface RouteDuty {
+  errand: Int;
+  /** Parada donde se recoge (−1: ya lo lleva el obrero). */
+  from: Int;
+  /** Parada donde se hace: la primera posterior con su destino. */
+  to: Int;
+  /** Ticks de trabajo con el rendimiento del obrero. */
+  work: Int;
+}
+
+export interface RoutePlan {
+  stops: RouteStop[];
+  duties: RouteDuty[];
+}
+
 /**
- * Horario de una ruta que saliera ahora: llegada y salida de cada parada. El trabajo de cada
- * parada se cuenta con luz (C3), con el rendimiento del obrero y la primera vez corta (C7).
- * null si nunca habría luz para terminar.
+ * Recados de hacer que haría una ruta que saliera ahora: los que el obrero lleva y los que
+ * esperan en una parada y van a una posterior, sin reservar por otra ruta, los más antiguos
+ * primero.
  */
+function routeDuties(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  actor: ActorId,
+  stops: readonly ElementId[],
+): RouteDuty[] {
+  const es = state.district.errands;
+  if (es === undefined) return [];
+  const out: RouteDuty[] = [];
+  const list = errandList(es);
+  const after = (i: Int, place: ElementId): Int => {
+    for (let j = i + 1; j < stops.length; j++) if (stops[j] === place) return j;
+    return -1;
+  };
+  for (const r of list) {
+    if (r.work === undefined || r.carrier !== m.id) continue;
+    const to = after(-1, r.to);
+    if (to >= 0) out.push({ errand: r.id, from: -1, to, work: effectiveWork(content, m, r.work) });
+  }
+  stops.forEach((place, i) => {
+    for (const r of list) {
+      if (r.work === undefined || r.at !== place || r.assigned !== undefined || !mayTake(r, actor)) continue;
+      if (out.some((d) => d.errand === r.id)) continue;
+      const to = after(i, r.to);
+      if (to >= 0) out.push({ errand: r.id, from: i, to, work: effectiveWork(content, m, r.work) });
+    }
+  });
+  return out;
+}
+
+/**
+ * Horario de una ruta que saliera ahora: llegada y salida de cada parada, y los recados de
+ * hacer que se compromete a hacer. El trabajo de cada parada (el suyo más el de los recados de
+ * hacer que se hacen allí) se cuenta con luz (C3), con el rendimiento del obrero y la primera
+ * vez corta (C7). null si nunca habría luz para terminar.
+ */
+export function routePlan(
+  state: SimState,
+  content: CompiledContent,
+  m: Mobile,
+  actor: ActorId,
+  stops: readonly ElementId[],
+): RoutePlan | null {
+  const work = stopWork(state, content, m, actor);
+  if (work === null) return null;
+  const duties = routeDuties(state, content, m, actor, stops);
+  let t = state.tick;
+  let pos = positionOf(m, t);
+  let from: ElementId | null = m.where.kind === 'at' ? m.where.element : null;
+  const out: RouteStop[] = [];
+  for (let i = 0; i < stops.length; i++) {
+    const id = at(stops, i);
+    const e = get(state.elements, id, 'parada');
+    const speed = speedBetween(state, content, m.stats.speed, from, id);
+    const arrive = arrivalTick(pos, e.pos, speed, state.scene.tickMs, t);
+    let here = work;
+    for (const d of duties) if (d.to === i) here += d.work;
+    const leave = workEnd(state, content, arrive, here);
+    if (leave === null) return null;
+    out.push({ at: id, arrive, leave });
+    t = leave;
+    pos = e.pos;
+    from = id;
+  }
+  return { stops: out, duties };
+}
+
+/** Horario de una ruta que saliera ahora (ver `routePlan`). */
 export function planRoute(
   state: SimState,
   content: CompiledContent,
@@ -190,24 +305,7 @@ export function planRoute(
   actor: ActorId,
   stops: readonly ElementId[],
 ): RouteStop[] | null {
-  const work = stopWork(state, content, m, actor);
-  if (work === null) return null;
-  let t = state.tick;
-  let pos = positionOf(m, t);
-  let from: ElementId | null = m.where.kind === 'at' ? m.where.element : null;
-  const out: RouteStop[] = [];
-  for (const id of stops) {
-    const e = get(state.elements, id, 'parada');
-    const speed = speedBetween(state, content, m.stats.speed, from, id);
-    const arrive = arrivalTick(pos, e.pos, speed, state.scene.tickMs, t);
-    const leave = workEnd(state, content, arrive, work);
-    if (leave === null) return null;
-    out.push({ at: id, arrive, leave });
-    t = leave;
-    pos = e.pos;
-    from = id;
-  }
-  return out;
+  return routePlan(state, content, m, actor, stops)?.stops ?? null;
 }
 
 function isStopList(v: unknown): v is string[] {
@@ -244,10 +342,17 @@ export function startRoute(state: SimState, content: CompiledContent, order: Ord
   const args = order.args as OrderArgs['route'];
   const table = content.errands;
   const m = get(state.mobiles, args.mobile, 'móvil');
-  const plan = planRoute(state, content, m, order.actor, args.stops);
+  const planned = routePlan(state, content, m, order.actor, args.stops);
+  const plan = planned?.stops ?? null;
   const first = plan?.[0];
-  if (table === undefined || plan === null || first === undefined)
+  if (table === undefined || planned === null || plan === null || first === undefined)
     throw new Error('ruta: sin horario (debió rechazarse)');
+  // Los recados de hacer que la ruta va a recoger quedan reservados para ella (P15).
+  const es = state.district.errands;
+  for (const d of planned.duties) {
+    const r = es?.items[String(d.errand)];
+    if (r !== undefined && d.from >= 0) r.assigned = m.id;
+  }
   markStarted(
     state,
     order.actor,
@@ -290,10 +395,29 @@ function deliverHere(
 ): void {
   const table = content.errands;
   if (table === undefined) return;
+  const dest = state.elements[place];
   for (const r of errandList(es)) {
     if (r.carrier !== m.id || r.to !== place) continue;
     const holder = r.holder ?? m.owner;
     removeKey(es.items, String(r.id));
+    // Lo que se trajo de casa va al almacén del destino si lo tiene (lo que no cabe se pierde).
+    if (r.takes !== undefined && r.taken === true && dest !== undefined) {
+      for (const res of sortedKeys(r.takes)) {
+        if (dest.store?.[res] === undefined) continue;
+        const have = levelOf(dest, res);
+        const added = min(capacityOf(content, dest, res) - have, r.takes[res] ?? 0);
+        if (added <= 0) continue;
+        setLevel(dest, res, have + added);
+        events.push({
+          tick: state.tick,
+          kind: 'store',
+          element: dest.id,
+          resource: res,
+          delta: added,
+          reason: 'recado',
+        });
+      }
+    }
     if (r.pay > 0) put(state, content, holder, table.currency, r.pay, events, 'recado');
     es.delivered[holder] = (es.delivered[holder] ?? 0) + 1;
     events.push({
@@ -312,33 +436,52 @@ function deliverHere(
  * ruta, luego lo más antiguo; lo que no cabe se queda. Con la carga llena no recoge nada.
  */
 function pickUpHere(
+  state: SimState,
   content: CompiledContent,
   es: Errands,
   m: Mobile,
   place: ElementId,
   rest: readonly ElementId[],
-  tick: Tick,
   events: Event[],
 ): void {
+  const tick = state.tick;
+  const pick = (r: Errand): void => {
+    r.at = null;
+    r.carrier = m.id;
+    r.holder = m.owner;
+    delete r.assigned;
+    events.push({ tick, kind: 'errand_picked', errand: r.id, mobile: m.id });
+  };
+  // Los de hacer que la ruta reservó al darla, sin carga.
+  for (const r of errandList(es)) if (r.assigned === m.id && r.at === place) pick(r);
   const carry = carryOf(content, m);
   let used = 0;
   for (const r of errandList(es)) if (r.carrier === m.id) used += r.size;
   if (used >= carry) return;
   const order = (r: Errand): Int => rest.indexOf(r.to);
   const candidates = errandList(es)
-    .filter((r) => r.at === place && order(r) >= 0 && (r.holder === undefined || r.holder === m.owner))
+    .filter((r) => r.work === undefined && r.at === place && order(r) >= 0 && mayTake(r, m.owner))
     .sort((a, b) => {
       const d = order(a) - order(b);
       return d !== 0 ? d : a.id - b.id;
     });
   for (const r of candidates) {
     if (used + r.size > carry) continue;
+    // Lo que se lleva de casa sale de las existencias al recogerlo; si no hay, se queda.
+    if (r.takes !== undefined && r.taken !== true) {
+      if (lacking(state, content, m.owner, r.takes) !== null) continue;
+      for (const res of sortedKeys(r.takes))
+        take(state, content, m.owner, res, r.takes[res] ?? 0, events, 'recado');
+      r.taken = true;
+    }
     used += r.size;
-    r.at = null;
-    r.carrier = m.id;
-    r.holder = m.owner;
-    events.push({ tick, kind: 'errand_picked', errand: r.id, mobile: m.id });
+    pick(r);
   }
+}
+
+/** Suelta las reservas de recados de hacer que hizo la ruta de un obrero y que siguen en su sitio. */
+function release(es: Errands, m: Mobile): void {
+  for (const r of errandList(es)) if (r.assigned === m.id) delete r.assigned;
 }
 
 /** Fin del trabajo en una parada: entregar, recoger y salir hacia la siguiente (o acabar). */
@@ -358,11 +501,12 @@ export function advanceRoute(
   const rest = job.stops.slice(job.index + 1).map((s) => s.at);
   if (es !== undefined) {
     deliverHere(state, content, es, m, stop.at, events);
-    if (rest.length > 0) pickUpHere(content, es, m, stop.at, rest, state.tick, events);
+    if (rest.length > 0) pickUpHere(state, content, es, m, stop.at, rest, events);
   }
   const next = job.stops[job.index + 1];
   const e = next === undefined ? undefined : state.elements[next.at];
   if (next === undefined || e === undefined) {
+    if (es !== undefined) release(es, m);
     m.job = null;
     events.push({ tick: state.tick, kind: 'job_done', mobile: m.id, job });
     return;
@@ -397,6 +541,9 @@ export function applyCancel(state: SimState, order: Order, events: Event[]): voi
   const job = m.job;
   if (job?.kind !== 'route') throw new Error('cancelar: sin ruta (debió rechazarse)');
   m.job = { ...job, stops: job.stops.slice(0, job.index + 1) };
+  // Lo de hacer que aún no ha recogido deja de estar reservado; lo que ya lleva, lo sigue llevando.
+  const es = state.district.errands;
+  if (es !== undefined) release(es, m);
   events.push({ tick: state.tick, kind: 'route_cancelled', mobile: m.id });
 }
 
@@ -417,7 +564,7 @@ export function validateUnload(
   const cargo = carriedBy(state, m.id);
   if (cargo.length === 0) return 'nothing_to_do';
   const free = kind.capacity - loadAt(es, place.id);
-  if (!cargo.some((r) => r.size <= free)) return 'place_full';
+  if (!cargo.some((r) => bulk(r) <= free)) return 'place_full';
   return null;
 }
 
@@ -431,8 +578,8 @@ export function applyUnload(state: SimState, content: CompiledContent, order: Or
   if (es === undefined || placeId === null || kind === undefined) throw new Error('dejar: sin sitio');
   let free = kind.capacity - loadAt(es, placeId);
   for (const r of carriedBy(state, m.id)) {
-    if (r.size > free) continue;
-    free -= r.size;
+    if (bulk(r) > free) continue;
+    free -= bulk(r);
     r.at = placeId;
     delete r.carrier;
     events.push({ tick: state.tick, kind: 'errand_dropped', errand: r.id, at: placeId });

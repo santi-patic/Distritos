@@ -21,6 +21,23 @@
     "maxStops": {
       "$ref": "common.schema.json#/definitions/posInt"
     },
+    "types": {
+      "type": "object",
+      "description": "P15: tipos de recado y su clase. Los de llevar ocupan carga; los de hacer, no: se trabaja en el destino.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["class"],
+        "properties": {
+          "class": {
+            "enum": ["llevar", "hacer"]
+          }
+        }
+      }
+    },
     "kinds": {
       "type": "object",
       "propertyNames": {
@@ -40,8 +57,8 @@
             "description": "Tipos de sitio a los que puede ir."
           },
           "size": {
-            "$ref": "common.schema.json#/definitions/posInt",
-            "description": "Bultos que ocupa."
+            "$ref": "common.schema.json#/definitions/nonNegInt",
+            "description": "Bultos que ocupa; 0 en los de hacer."
           },
           "pay": {
             "$ref": "common.schema.json#/definitions/nonNegInt"
@@ -49,6 +66,18 @@
           "expiresSeconds": {
             "$ref": "common.schema.json#/definitions/seconds",
             "description": "Lo que aguanta en su sitio sin que nadie lo recoja; sin esto, no caduca."
+          },
+          "type": {
+            "$ref": "common.schema.json#/definitions/kindId",
+            "description": "P15: tipo (comida, energía, trabajo…), de la lista types."
+          },
+          "workSeconds": {
+            "$ref": "common.schema.json#/definitions/seconds",
+            "description": "P15: recado de hacer; segundos de trabajo con luz en la parada del destino."
+          },
+          "takes": {
+            "$ref": "common.schema.json#/definitions/amounts",
+            "description": "P15: lo que se saca de las existencias de quien lo recoge al recogerlo; al entregarlo va al almacén del destino si lo tiene."
           }
         }
       }

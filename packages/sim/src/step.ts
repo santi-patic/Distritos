@@ -1,16 +1,16 @@
 /**
  * El paso de tick, el avance por saltos y la repetición. Esquema del paquete sim, §5.4 y §10.
  *
- *   step: órdenes por seq → llegadas → fin de tareas (y paradas de las rutas) → contratados que
- *         llegan → [paso diario] → los que no han comido comen → recados (generar, caducar)
- *         → tasas (apagados y un tick de flujos) → tick + 1
+ *   step: órdenes por seq → llegadas → fin de tareas (y paradas de las rutas) → aperturas que
+ *         acaban → contratados que llegan → [paso diario] → los que no han comido comen →
+ *         recados (generar, caducar) → tasas (apagados y un tick de flujos) → tick + 1
  *
  * `step` muta el estado que recibe y devuelve los eventos; quien necesite conservar un estado
  * lo clona antes. `advance` salta los tramos en los que no hay nada que hacer: acumula los
  * flujos de todo el tramo con fórmula cerrada (igual que tick a tick, lo exige la batería
  * «rápido = lento») y ejecuta `step` en el siguiente tick con algo: una orden, una llegada, un
- * fin de tarea o de parada, una contratación, el paso diario, un recado que se genera o caduca, o
- * un cambio de tasas.
+ * fin de tarea o de parada, una apertura que acaba, una contratación, el paso diario, un recado
+ * que se genera o caduca, o un cambio de tasas.
  */
 
 import { min } from './arith.js';
@@ -20,6 +20,7 @@ import { createScene, type SceneParams } from './scene.js';
 import { dailyStep } from './rules/daily.js';
 import { nextErrandEvent, processErrands } from './rules/errands.js';
 import { flowsJump, flowsStep, nextFlowEvent } from './rules/flows.js';
+import { nextOpeningEnd, processOpenings } from './rules/fog.js';
 import { processJobs, nextJobEnd } from './rules/jobs.js';
 import { nextArrival, processArrivals } from './rules/movement.js';
 import { apply, type StepEffects } from './rules/orders.js';
@@ -38,6 +39,7 @@ export function step(state: SimState, orders: readonly Order[], content: Compile
   for (const o of sorted) apply(state, o, content, events, effects);
   processArrivals(state, events);
   processJobs(state, content, events);
+  processOpenings(state, content, events);
   processHires(state, content, events);
   if (isDailyTick(state, content)) dailyStep(state, content, events);
   feedHungry(state, content, events);
@@ -60,6 +62,7 @@ export function nextEventTick(state: SimState, content: CompiledContent): Tick |
   next = earliest(next, nextDailyTick(state, content, state.tick));
   next = earliest(next, nextFlowEvent(state, content));
   next = earliest(next, nextErrandEvent(state));
+  next = earliest(next, nextOpeningEnd(state));
   return next;
 }
 

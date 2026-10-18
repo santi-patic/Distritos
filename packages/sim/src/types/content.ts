@@ -157,9 +157,35 @@ export interface TerrainKind {
   category: 'ground' | 'water' | 'wood' | 'stone';
 }
 
+/** Abrir un sector trabajando: el obrero trabaja `ticks` en él al llegar y lo abre al terminar (F0). */
+export interface RevealWork {
+  resource: ResourceId;
+  cost: Joule;
+  ticks: Int;
+  firstTicks?: Int;
+}
+
+/**
+ * F1 (P14). Abrir un sector con curva: el obrero va a empezar la apertura y queda libre; el
+ * sector se abre cuando pasa su tiempo, de día y de noche. La n-ésima apertura que empieza un
+ * actor dura `curve[n]` ticks (pasado el final, el último valor). Varias a la vez: el freno es
+ * el coste.
+ */
+export interface RevealCurve {
+  resource: ResourceId;
+  cost: Joule;
+  curve: Int[];
+}
+
 export interface Actions {
-  /** Abrir un sector: qué recurso cuesta, cuánto, y cuántos ticks trabaja el obrero al llegar. */
-  reveal: { resource: ResourceId; cost: Joule; ticks: Int; firstTicks?: Int };
+  /** Abrir un sector: qué recurso cuesta, cuánto y cuánto tarda. */
+  reveal: RevealWork | RevealCurve;
+  /** F1 (P16). Nombres que pone el jugador a lugares y obreros; sin esto, no se renombra. */
+  name?: { maxLength: Int };
+}
+
+export function isRevealCurve(r: RevealWork | RevealCurve): r is RevealCurve {
+  return 'curve' in r;
 }
 
 /** F1. Recurso: físico (en almacenes de elementos) o de libro (en el actor). */
@@ -190,6 +216,12 @@ export interface TaskKind extends WorkSpec {
   clean?: boolean;
   /** Variante si el actor tiene un elemento de este tipo (el taller). */
   tool?: WorkSpec & { kind: KindId };
+  /**
+   * F1 (P9). Tarea de jornada: dura lo que quede de luz de trabajo al llegar (de noche, la
+   * jornada siguiente entera), o menos si antes se llena donde va lo producido. `gives` es lo
+   * que rinde cada `ticks` de trabajo. La primera vez (`firstTicks`) sigue siendo corta y fija.
+   */
+  jornada?: boolean;
 }
 
 /** F1. Edificio construible. */
@@ -253,16 +285,34 @@ export interface PlaceKind {
   everyTicks?: Int;
 }
 
-/** F1. Tipo de recado: algo del común que hay que llevar de un sitio a otro. */
+/**
+ * F1. Tipo de recado. Los de llevar ocupan carga y se entregan en el destino; los de hacer
+ * (P15) no ocupan carga: el obrero trabaja `work` ticks más en la parada del destino y cobra al
+ * acabar.
+ */
 export interface ErrandKind {
   /** Tipos de sitio a los que puede ir. */
   to: KindId[];
-  /** Bultos que ocupa. */
+  /** Bultos que ocupa; 0 en los de hacer. */
   size: Int;
   /** Lo que paga al entregarlo, en la moneda de los recados. */
   pay: Int;
   /** Ticks que aguanta en su sitio sin que nadie lo recoja; sin esto, no caduca. */
   expiresTicks?: Int;
+  /** F1 (P15). Tipo, para la interfaz (pictograma y color): comida, energía, trabajo… */
+  type?: KindId;
+  /** F1 (P15). Recado de hacer: ticks de trabajo con luz en la parada del destino. */
+  work?: Int;
+  /**
+   * F1 (P15). Lo que se saca de las existencias de quien lo recoge al recogerlo (llevar energía
+   * o comida de casa); al entregarlo va al almacén del destino si lo tiene.
+   */
+  takes?: Record<ResourceId, Int>;
+}
+
+/** F1 (P15). Tipo de recado: clase y nada más (el pictograma y el color los pone el cliente). */
+export interface ErrandType {
+  class: 'llevar' | 'hacer';
 }
 
 /** F1. Recados y rutas. */
@@ -273,6 +323,7 @@ export interface ErrandTable {
   firstStopTicks?: Int;
   maxStops: Int;
   kinds: Record<KindId, ErrandKind>;
+  types?: Record<KindId, ErrandType>;
 }
 
 export interface CompiledContent {

@@ -111,6 +111,31 @@ export function nextWorkStart(state: SimState, content: CompiledContent, tick: T
 }
 
 /**
+ * Lo que queda de jornada para una tarea que empezara en `tick`: desde el propio tick si hay
+ * luz de trabajo, o desde el comienzo de la ventana siguiente si no, hasta el final de esa
+ * ventana. null si la escena no tiene umbral de luz (sin ventanas: siempre se trabaja) o si
+ * nunca hay luz.
+ */
+export function workWindow(
+  state: SimState,
+  content: CompiledContent,
+  tick: Tick,
+): { start: Tick; end: Tick } | null {
+  if (content.scenes[state.scene.kind].workLight === undefined) return null;
+  const start = workable(state, content, tick) ? tick : nextWorkStart(state, content, tick);
+  if (start === null) return null;
+  const steps = curveOf(state, content).length;
+  let t = start;
+  for (let k = 0; k <= 2 * steps; k++) {
+    const next = nextLightChange(state, content, t);
+    if (next === null) return null;
+    if (!workable(state, content, next)) return { start, end: next };
+    t = next;
+  }
+  return null;
+}
+
+/**
  * Si el tick es el del paso diario de la escena. El tick de creación nunca lo es: el primer
  * día empieza al crear la escena, aunque se cree justo a la hora del paso diario.
  */

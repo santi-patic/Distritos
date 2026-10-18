@@ -2,14 +2,15 @@
  * Semana simulada de la prueba de fuego de F1 (diseño de la casa §10) con las tablas reales.
  *
  * Un jugador entra diez minutos al día a la misma hora local. Decide al entrar y cada pocos
- * minutos: mientras está, solo hace lo que termina antes de irse (llevar algo al encargo, lo que
- * la primera vez dura minutos); en la última decisión deja a cada obrero libre con algo que
- * dure horas. Para cada obrero prueba, por este orden: construir lo siguiente del guion (cobertizo,
- * bomba, taller) si llega, cablear y regar con la bomba, juntar el material que le falta, abrir un
- * sector (hasta siete), el camino de la casa a la huerta, llevar algo al encargo, recoger la
- * huerta, una ruta de recados que pague (un obrero como mucho), trabajar en la obra del encargo,
- * limpiar un panel y sacar agua; con el material juntado y sin Águilas, primero ganarlas.
- * Contrata cuando la bomba ya riega la huerta.
+ * minutos: mientras está, solo hace lo que termina antes de irse (abrir un sector, lo que la
+ * primera vez dura minutos); en la última decisión deja a cada obrero libre con algo que dure
+ * horas. Para cada obrero prueba, por este orden: construir lo siguiente del guion (cobertizo,
+ * bomba, taller) si llega, cablear y regar con la bomba, juntar el material que le falta (talar y
+ * picar son de jornada, P9), abrir el sector oculto más cercano si queda energía (en paralelo,
+ * P14), el camino de la casa a la huerta, recoger la huerta, una ruta de recados que pague (un
+ * obrero como mucho; con los de la casa, P15, sin dejar la casa sin comida ni la batería sin
+ * reserva), limpiar un panel y sacar agua; con el material juntado y sin Águilas, primero
+ * ganarlas. Contrata cuando la bomba ya riega la huerta.
  *
  * No es un jugador óptimo: es una cota de lo que da la casa con estos números, para contrastar el
  * guion antes de la prueba con personas. Con SEMANA=<fichero> escribe el informe día a día.
@@ -55,9 +56,7 @@ const DECISIONS = [0, 3 * MIN, 6 * MIN, 9 * MIN];
 const DAYS = 7;
 /** El guion de la semana construye en este orden (diseño de la casa §10). */
 const BUILD_ORDER = ['cobertizo', 'bomba', 'taller'];
-/** Sectores abiertos (con el de la casa) que pide el guion al final de la semana. */
-const GOAL_SECTORS = 7;
-/** Lo que el jugador no gasta de la batería ni de la despensa al llevar algo al encargo. */
+/** Lo que el jugador no gasta de la batería ni de la despensa al abrir ni en los recados de casa. */
 const KEEP = { energia: 720_000, comida: 4 };
 
 function els(s: SimState, kind?: string): Element[] {
@@ -181,6 +180,12 @@ function bestRoute(p: Player, m: Mobile): Candidate | null {
       const copy = structuredClone(p.s);
       const order = { seq: 1_000_000, tick: copy.tick, ...intent } as Order;
       const evs = advance(copy, [order], end + 1, c);
+      // Los recados de casa se llevan comida y energía: la ruta no vale si deja la casa sin reserva.
+      if (
+        available(copy, c, ACTOR, 'comida') < KEEP.comida ||
+        available(copy, c, ACTOR, 'energia') < KEEP.energia
+      )
+        continue;
       let pay = 0;
       let n = 0;
       for (const e of evs)
@@ -243,9 +248,12 @@ function options(p: Player, m: Mobile): Candidate[] {
     ['madera', 'talar'],
     ['piedra', 'picar'],
   ] as const) {
-    // Lo que ya están juntando los otros obreros cuenta.
+    // Lo que ya están juntando los otros obreros cuenta (en las de jornada, lo fijado al darla).
     const each = c.tasks?.[task]?.gives?.[res] ?? 0;
-    const coming = others.filter((w) => w.job?.kind === 'task' && w.job.task === task).length * each;
+    const coming = others.reduce(
+      (n, w) => n + (w.job?.kind === 'task' && w.job.task === task ? (w.job.gives?.[res] ?? each) : 0),
+      0,
+    );
     if (!short(res, (res === 'piedra' && !hasCamino(s) ? 5 : 0) - coming)) continue;
     for (const e of mine(s, res))
       gather.push({ kind: 'job', args: { mobile: m.id, element: e.id, task }, note: `${who}: ${task}` });
@@ -260,28 +268,6 @@ function options(p: Player, m: Mobile): Candidate[] {
           },
         ]
       : [];
-  // El encargo: llevar algo si sobra, o trabajar en la obra.
-  const enc = s.district.board?.encargo ?? null;
-  const carry: Candidate[] = [];
-  const obra: Candidate[] = [];
-  if (enc !== null && enc.reserved < enc.amount) {
-    if (enc.work) {
-      obra.push({
-        kind: 'deliver',
-        args: { mobile: m.id, encargo: enc.id },
-        note: `${who}: obra del encargo`,
-      });
-    } else {
-      const keep = KEEP[enc.resource as keyof typeof KEEP];
-      const left = available(s, c, ACTOR, enc.resource) - Math.min(enc.perTrip, enc.amount - enc.reserved);
-      if (left >= keep)
-        carry.push({
-          kind: 'deliver',
-          args: { mobile: m.id, encargo: enc.id },
-          note: `${who}: llevar ${enc.resource} al encargo`,
-        });
-    }
-  }
   const harvest: Candidate[] =
     huerta !== undefined && levelOf(huerta, 'comida') >= 2
       ? [
@@ -296,18 +282,21 @@ function options(p: Player, m: Mobile): Candidate[] {
   const onRoute = others.some((w) => w.job?.kind === 'route');
   const route = onRoute ? null : bestRoute(p, m);
   const errands: Candidate[] = route === null ? [] : [route];
-  // Abrir el sector oculto más cercano junto a uno abierto (que no esté abriendo otro).
+  // Abrir el sector oculto más cercano junto a uno abierto (que no esté abriendo nadie), si la
+  // batería guarda su reserva después.
   const open = new Set(revealed(s));
   const opening = new Set(others.map((w) => (w.job?.kind === 'reveal' ? w.job.hex : '')));
   const hex = Object.keys(s.map.sectors)
     .filter((k) => s.map.sectors[k]?.plot === 'p1' && s.map.sectors[k]?.status === 'hidden')
-    .filter((k) => !opening.has(k) && H.neighbors(H.parse(k)).some((n) => open.has(H.key(n))))
+    .filter((k) => s.map.sectors[k]?.opening === undefined && !opening.has(k))
+    .filter((k) => H.neighbors(H.parse(k)).some((n) => open.has(H.key(n))))
     .sort((a, b) => {
       const d = H.distance(H.parse(a), { q: 0, r: 0 }) - H.distance(H.parse(b), { q: 0, r: 0 });
       return d !== 0 ? d : a.localeCompare(b);
     })[0];
+  const revealCost = c.actions.reveal.cost;
   const explore: Candidate[] =
-    hex === undefined || open.size >= GOAL_SECTORS
+    hex === undefined || available(s, c, ACTOR, 'energia') - revealCost < KEEP.energia
       ? []
       : [{ kind: 'reveal', args: { mobile: m.id, hex }, note: `${who}: abrir ${hex}` }];
   // Mantenimiento: el panel más sucio, si lo está bastante; agua para la huerta sin bomba.
@@ -330,21 +319,9 @@ function options(p: Player, m: Mobile): Candidate[] {
     });
   // Con el material de lo siguiente ya juntado y sin Águilas, primero ganarlas.
   const needEagles = next !== undefined && !short('madera') && !short('piedra') && short('eagles');
-  const earn = [...carry, ...errands, ...obra];
   return needEagles
-    ? [...build, ...wire, ...earn, ...harvest, ...explore, ...camino, ...care]
-    : [
-        ...build,
-        ...wire,
-        ...gather,
-        ...explore,
-        ...camino,
-        ...carry,
-        ...harvest,
-        ...errands,
-        ...obra,
-        ...care,
-      ];
+    ? [...build, ...wire, ...errands, ...harvest, ...explore, ...camino, ...care]
+    : [...build, ...wire, ...gather, ...explore, ...camino, ...harvest, ...errands, ...care];
 }
 
 interface DayRow {
@@ -360,7 +337,8 @@ interface DayRow {
   madera: number;
   piedra: number;
   errands: number;
-  encargos: number;
+  /** Águilas cobradas por recados en el día. */
+  pay: number;
   hungry: number;
 }
 
@@ -418,8 +396,11 @@ function playWeek(plan: Plan): { p: Player; rows: DayRow[]; milestones: Record<s
           }
         }
         // Contratar no ocupa a ningún obrero: se prueba aparte, cuando la bomba ya riega la huerta
-        // (antes, otra boca sin comida que la sostenga deja a todos sin comer al final de la semana).
-        if (mine(p.s, 'bomba').length > 0)
+        // y queda comida para tres días de todos después de pagar la contratación (antes, otra boca
+        // sin comida que la sostenga deja a todos sin comer al final de la semana).
+        const hireCost = c.hires?.obrero_peon?.cost.comida ?? 0;
+        const fed = available(p.s, c, ACTOR, 'comida') - hireCost >= 3 * (workers(p.s).length + 1);
+        if (mine(p.s, 'bomba').length > 0 && fed)
           p.give({ kind: 'hire', args: { kind: 'obrero_peon' }, note: 'contratar a alguien' }, null);
       }
     }
@@ -433,9 +414,9 @@ function playWeek(plan: Plan): { p: Player; rows: DayRow[]; milestones: Record<s
       .map((e) => e.kind);
     const buildings = BUILD_ORDER.filter((k) => mine(s, k).length > 0);
     if (hasCamino(s)) buildings.push('camino');
-    const encargos = p.events
-      .filter((e) => e.kind === 'delivered' && e.actor === ACTOR)
-      .reduce((n, e) => n + (e.kind === 'delivered' ? e.pay : 0), 0);
+    const pay = p.events
+      .filter((e) => e.kind === 'errand_delivered' && e.actor === ACTOR && e.tick >= (day - 1) * DAY)
+      .reduce((n, e) => n + (e.kind === 'errand_delivered' ? e.pay : 0), 0);
     rows.push({
       day,
       did: p.notes,
@@ -449,7 +430,7 @@ function playWeek(plan: Plan): { p: Player; rows: DayRow[]; milestones: Record<s
       madera: available(s, c, ACTOR, 'madera'),
       piedra: available(s, c, ACTOR, 'piedra'),
       errands: s.district.errands?.delivered[ACTOR] ?? 0,
-      encargos,
+      pay,
       hungry: workers(s).filter((m) => m.hungry === true).length,
     });
     mark('primer sector', day, revealed(s).length >= 2);
@@ -480,12 +461,12 @@ function report(title: string, r: ReturnType<typeof playWeek>): string {
     lines.push(`| ${k} | ${GUION[k]} | ${v ?? 'no llega'} |`);
   lines.push('');
   lines.push(
-    '| Día | Sectores abiertos | Hallazgos | Hecho | Obreros | Águilas | Comida | Energía (kWh) | Madera | Piedra | Recados entregados | Águilas de encargos | Sin comer |',
+    '| Día | Sectores abiertos | Hallazgos | Hecho | Obreros | Águilas | Comida | Energía (kWh) | Madera | Piedra | Recados entregados | Águilas de recados (día) | Sin comer |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   );
   for (const d of r.rows)
     lines.push(
-      `| ${d.day} | ${d.sectors} | ${d.finds.join(', ')} | ${d.buildings.join(', ')} | ${d.workers} | ${d.eagles} | ${d.comida} | ${d.energia} | ${d.madera} | ${d.piedra} | ${d.errands} | ${d.encargos} | ${d.hungry} |`,
+      `| ${d.day} | ${d.sectors} | ${d.finds.join(', ')} | ${d.buildings.join(', ')} | ${d.workers} | ${d.eagles} | ${d.comida} | ${d.energia} | ${d.madera} | ${d.piedra} | ${d.errands} | ${d.pay} | ${d.hungry} |`,
     );
   lines.push('');
   for (const d of r.rows) lines.push(`- **Día ${d.day}:** ${d.did.join('; ') || 'nada'}.`);
@@ -497,7 +478,8 @@ interface Variants {
   variants: {
     id: string;
     title: string;
-    tasks: Record<string, { seconds: number; gives: Record<string, number> }>;
+    /** Cambios sobre las tablas reales: se mezclan clave a clave (los números y listas se sustituyen). */
+    patch: Record<string, unknown>;
   }[];
   runs: { variant: string | null; hours: number[]; minutes: number }[];
 }
@@ -506,18 +488,26 @@ const VARIANTS = JSON.parse(
   readFileSync(new URL('./semana-variantes.json', import.meta.url), 'utf8'),
 ) as Variants;
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Mezcla un cambio sobre una tabla: los objetos clave a clave, lo demás se sustituye. */
+function merge(base: Record<string, unknown>, patch: Record<string, unknown>, where: string): void {
+  for (const [k, v] of Object.entries(patch)) {
+    const cur = base[k];
+    if (isObject(v) && isObject(cur)) merge(cur, v, `${where}.${k}`);
+    else base[k] = structuredClone(v);
+  }
+}
+
 /** Las tablas reales con los cambios de una variante, para medir propuestas sin tocarlas. */
 function variant(id: string | null): { title: string; content: CompiledContent } {
   const v = VARIANTS.variants.find((x) => x.id === id);
   if (v === undefined) return { title: 'Tablas reales', content: real };
-  const t: RawTables = structuredClone(tables);
-  for (const [k, change] of Object.entries(v.tasks)) {
-    const task = t.tasks[k];
-    if (task === undefined) throw new Error(`variante ${v.id}: no hay tarea ${k}`);
-    task.seconds = change.seconds;
-    task.gives = change.gives;
-  }
-  return { title: v.title, content: compile(t) };
+  const t = structuredClone(tables) as unknown as Record<string, unknown>;
+  merge(t, v.patch, v.id);
+  return { title: v.title, content: compile(t as unknown as RawTables) };
 }
 
 function visits(hours: number[], minutes: number): string {

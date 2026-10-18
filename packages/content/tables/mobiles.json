@@ -4,7 +4,7 @@
       "force": 1,
       "vision": 2,
       "alert": 1,
-      "speedMmPerS": 20000
+      "speedMmPerS": 80000
     },
     "names": ["Antía", "Breixo", "Xiana", "Roi", "Sabela", "Brais", "Noa", "Martiño"],
     "eats": {
@@ -19,7 +19,7 @@
       "force": 1,
       "vision": 3,
       "alert": 2,
-      "speedMmPerS": 15000
+      "speedMmPerS": 60000
     },
     "names": ["Iria", "Xoán", "Uxía", "Paio", "Lúa", "Anxo"],
     "eats": {

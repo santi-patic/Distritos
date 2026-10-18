@@ -4,8 +4,9 @@
  * menú. Solo pinta modelos ya calculados y devuelve los toques a quien la usa; no conoce el sim.
  */
 
-import type { ActionView, SheetView } from './actions.js';
+import type { ActionView, SheetLine, SheetView } from './actions.js';
 import { t } from './i18n.js';
+import { PICTO, hexColor, isErrandType, typeColor } from './pictos.js';
 
 export interface BarModel {
   energy: string;
@@ -135,6 +136,19 @@ const ICONS = {
       '<path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
     ),
 };
+
+/** Pictograma de un tipo de recado en su cuadrado del color de su función (P15). */
+export function pictoSquare(type: string, title: string): HTMLElement {
+  const box = h('span', { class: 'picto', role: 'img', 'aria-label': title, title });
+  box.style.setProperty('--picto-bg', hexColor(typeColor(type)));
+  if (isErrandType(type)) box.append(svg('0 0 24 24', PICTO[type], 'picto-svg'));
+  return box;
+}
+
+function sheetLine(l: SheetLine): HTMLElement {
+  if (typeof l === 'string') return h('li', {}, l);
+  return h('li', { class: 'errand' }, pictoSquare(l.picto, l.title), h('span', {}, l.text));
+}
 
 /** Firma de un modelo para no rehacer el DOM si no ha cambiado. */
 function sig(v: unknown): string {
@@ -301,9 +315,17 @@ export class Ui {
       a.meta.length > 0 ? h('span', { class: 'meta' }, a.meta) : null,
     );
     b.addEventListener('click', () => {
-      this.on.action(a);
+      this.on.action(this.withInput(a));
     });
     return b;
+  }
+
+  /** Si la orden lleva lo escrito en el campo de la hoja, se lo pone (sin espacios en los bordes). */
+  private withInput(a: ActionView): ActionView {
+    if (a.takesInput !== true || a.intent === undefined) return a;
+    const input = this.sheet.querySelector<HTMLInputElement>('input.name-input');
+    const name = (input?.value ?? '').trim().replace(/\s+/g, ' ');
+    return { ...a, intent: { ...a.intent, args: { ...(a.intent.args as object), name } } };
   }
 
   showSheet(view: SheetView | null): void {
@@ -333,10 +355,29 @@ export class Ui {
         : null;
     const main = view.actions.filter((a) => !isQuiet(a));
     const quiet = view.actions.filter(isQuiet);
+    let input: HTMLInputElement | null = null;
+    if (view.input !== undefined) {
+      input = h('input', {
+        type: 'text',
+        class: 'name-input',
+        maxlength: String(view.input.max),
+        placeholder: view.input.placeholder,
+        autocomplete: 'off',
+        enterkeyhint: 'done',
+        'aria-label': view.title,
+      });
+      input.value = view.input.value;
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        const save = view.actions.find((a) => a.takesInput === true);
+        if (save !== undefined) this.on.action(this.withInput(save));
+      });
+    }
     const parts: Child[] = [
       h('header', { class: 'sheet-head' }, h('h2', {}, view.title), close),
       workerLine,
-      view.lines.length > 0 ? h('ul', { class: 'lines' }, ...view.lines.map((l) => h('li', {}, l))) : null,
+      view.lines.length > 0 ? h('ul', { class: 'lines' }, ...view.lines.map(sheetLine)) : null,
+      input,
       main.length > 0 ? h('div', { class: 'acts' }, ...main.map((a) => this.actionButton(a))) : null,
       quiet.length > 0 ? h('div', { class: 'acts side' }, ...quiet.map((a) => this.actionButton(a))) : null,
     ];
@@ -344,6 +385,7 @@ export class Ui {
       ...parts.filter((p): p is Node | string => p !== null && p !== undefined && p !== false),
     );
     this.sheet.hidden = false;
+    input?.focus();
   }
 
   toast(text: string): void {

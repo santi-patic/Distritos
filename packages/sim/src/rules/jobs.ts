@@ -15,7 +15,7 @@ import type { SimState } from '../types/state.js';
 import { completeDelivery } from './board.js';
 import { completeBuild } from './build.js';
 import { advanceRoute } from './errands.js';
-import { revealSector } from './fog.js';
+import { revealSector, startOpening } from './fog.js';
 import { completeLink } from './links.js';
 import { completeTask } from './tasks.js';
 
@@ -33,7 +33,9 @@ export function processJobs(state: SimState, content: CompiledContent, events: E
     }
     switch (job.kind) {
       case 'reveal':
-        revealSector(state, content, job.hex, m.owner, events);
+        // Con curva (P14), el obrero ha llegado: empieza la apertura y queda libre.
+        if (job.opens !== undefined) startOpening(state, job.hex, m.owner, job.opens, events);
+        else revealSector(state, content, job.hex, m.owner, events);
         break;
       case 'build':
         completeBuild(state, content, m, job, events);

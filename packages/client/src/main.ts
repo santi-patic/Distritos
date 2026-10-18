@@ -370,24 +370,34 @@ async function main(): Promise<void> {
 
   function boardModel(): BoardModel | null {
     const board = game.state.district.board;
-    if (board === undefined) return null;
-    const e = board.encargo;
+    const errands = errandBoard(ctx());
+    if (board === undefined && errands === null) return null;
+    const e = board?.encargo ?? null;
     const title = t('board.title');
-    const always = Object.keys(board.totals[ACTOR] ?? {})
+    const always = Object.keys(board?.totals[ACTOR] ?? {})
       .sort()
       .map((r) => {
-        const v = board.totals[ACTOR]?.[r] ?? 0;
+        const v = board?.totals[ACTOR]?.[r] ?? 0;
         return r === 'trabajo' ? t('board.totalWork', { d: duration(v) }) : cap(amount(r, v));
       });
-    const errands = errandBoard(ctx());
     const errandPlaces = errands?.places ?? [];
     const errandsDone = Object.keys(errands?.delivered ?? {})
       .sort()
       .map((actor) => `${actor === ACTOR ? t('board.you') : actor}: ${errands?.delivered[actor] ?? 0}`);
     if (e === null) {
+      // Sin encargo del día (P15: es ya un recado de la casa), la pizarra cuenta los recados.
+      const today =
+        errands === null
+          ? t('board.none')
+          : [
+              t('board.open', { n: errands.open }),
+              errands.home > 0 ? t('board.home', { n: errands.home }) : '',
+            ]
+              .filter((x) => x.length > 0)
+              .join('. ');
       return {
         title,
-        today: t('board.none'),
+        today,
         progress: 0,
         progressText: '',
         reward: '',
@@ -462,6 +472,7 @@ async function main(): Promise<void> {
     const capE = energyCapacity(c);
     const board = game.state.district.board;
     const e = board?.encargo ?? null;
+    const errands = errandBoard(c);
     return {
       energy: amount('energia', s.energia ?? 0),
       energyFraction: capE > 0 ? (s.energia ?? 0) / capE : 0,
@@ -470,7 +481,7 @@ async function main(): Promise<void> {
       eagles: qty('eagles', s.eagles ?? 0),
       wood: (s.madera ?? 0) > 0 ? qty('madera', s.madera ?? 0) : null,
       stone: (s.piedra ?? 0) > 0 ? qty('piedra', s.piedra ?? 0) : null,
-      boardOpen: e !== null && e.reserved < e.amount,
+      boardOpen: (e !== null && e.reserved < e.amount) || (errands?.home ?? 0) > 0,
     };
   }
 
@@ -495,6 +506,10 @@ async function main(): Promise<void> {
     const h: Highlight = {};
     if (selection?.kind === 'element') h.element = selection.id;
     if (selection?.kind === 'mobile') h.mobile = selection.id;
+    if (selection?.kind === 'rename') {
+      if (selection.element !== undefined) h.element = selection.element;
+      if (selection.mobile !== undefined) h.mobile = selection.mobile;
+    }
     if (selection?.kind === 'sector') {
       h.sector = selection.hex;
       const s = game.state.map.sectors[selection.hex];
@@ -539,6 +554,10 @@ async function main(): Promise<void> {
       switch (ev.kind) {
         case 'sector_revealed':
           if (ev.by === ACTOR) ui.toast(t('toast.revealed'));
+          break;
+        case 'opening':
+          if (ev.by === ACTOR)
+            ui.toast(t('toast.opening', { when: when(game.msOf(ev.endTick), Date.now()) }));
           break;
         case 'built': {
           const e = game.state.elements[ev.element];
@@ -601,6 +620,11 @@ async function main(): Promise<void> {
         last === undefined
           ? renderer.screenOf(v, { mobile: selection.mobile })
           : renderer.screenOf(v, { element: last });
+    } else if (selection.kind === 'rename') {
+      p =
+        selection.element !== undefined
+          ? renderer.screenOf(v, { element: selection.element })
+          : renderer.screenOf(v, { mobile: selection.mobile ?? '' });
     } else p = renderer.screenOf(v, { element: selection.to ?? selection.from });
     if (p === null) return;
     const sheet = document.getElementById('sheet');

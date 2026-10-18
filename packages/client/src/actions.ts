@@ -16,10 +16,10 @@ import {
   levelOf,
   linkSpec,
   placeIds,
-  planRoute,
   positionOf,
   quote,
   resolveFlows,
+  routePlan,
   taskVariant,
   validate,
   workable,
@@ -47,7 +47,9 @@ export type Selection =
   | { kind: 'mobile'; id: string }
   | { kind: 'link'; linkKind: string; from: string; to: string | null }
   /** Ruta de recados que se está preparando: el obrero y las paradas tocadas, en orden. */
-  | { kind: 'route'; mobile: string; stops: string[] };
+  | { kind: 'route'; mobile: string; stops: string[] }
+  /** Poner nombre a un lugar o a un obrero (P16). */
+  | { kind: 'rename'; element?: string; mobile?: string };
 
 export interface ActionView {
   /** Estable, para las pruebas y para la etiqueta `data-action`. */
@@ -61,13 +63,20 @@ export interface ActionView {
   next?: Selection;
   /** Volver a la selección vacía (cancelar). */
   close?: boolean;
+  /** La orden lleva como nombre lo escrito en el campo de la hoja (renombrar). */
+  takesInput?: boolean;
 }
+
+/** Una línea de la hoja: texto, o un recado con el pictograma de su tipo (P15). */
+export type SheetLine = string | { picto: string; text: string; title: string };
 
 export interface SheetView {
   title: string;
   /** Líneas de estado, ya traducidas. */
-  lines: string[];
+  lines: SheetLine[];
   actions: ActionView[];
+  /** Campo de texto de la hoja (renombrar). */
+  input?: { value: string; max: number; placeholder: string };
   /** Obrero que haría las órdenes, si alguna lo necesita. */
   worker: Mobile | null;
   /** Extremos posibles de un nexo, para resaltarlos en el mapa. */
@@ -126,21 +135,28 @@ function siteSuffix(ctx: Ctx, e: Element): string | null {
   return String(same.findIndex((x) => x.id === e.id) + 1);
 }
 
-/** Nombre de un elemento concreto: el de su tipo y, si hace falta, hacia dónde cae. */
-export function elementLabel(ctx: Ctx, e: Element): string {
+/** Nombre por defecto de un elemento: el de su tipo y, si hace falta, hacia dónde cae. */
+export function defaultLabel(ctx: Ctx, e: Element): string {
   const suffix = siteSuffix(ctx, e);
   return suffix === null ? elementName(e.kind) : `${elementName(e.kind)} ${suffix}`;
 }
 
-/** «a la cocina común», «a la casa vecina del norte». */
+/** Nombre de un elemento concreto: el que le puso el jugador (P16) o el de por defecto. */
+export function elementLabel(ctx: Ctx, e: Element): string {
+  return e.name ?? defaultLabel(ctx, e);
+}
+
+/** «a la cocina común», «a la casa vecina del norte», «a A Eira». */
 function destText(ctx: Ctx, e: Element): string {
+  if (e.name !== undefined) return t('dest.named', { name: e.name });
   const base = has(`dest.${e.kind}`) ? t(`dest.${e.kind}`) : lower(elementName(e.kind));
   const suffix = siteSuffix(ctx, e);
   return suffix === null ? base : `${base} ${suffix}`;
 }
 
-/** «en la cocina común», «en la casa vecina del norte». */
+/** «en la cocina común», «en la casa vecina del norte», «en A Eira». */
 function inText(ctx: Ctx, e: Element): string {
+  if (e.name !== undefined) return t('in.named', { name: e.name });
   const base = has(`in.${e.kind}`) ? t(`in.${e.kind}`) : lower(elementName(e.kind));
   const suffix = siteSuffix(ctx, e);
   return suffix === null ? base : `${base} ${suffix}`;
@@ -158,22 +174,61 @@ function errandText(kind: string, n: number): string {
   return t(n === 1 ? key : `${key}.many`, { n });
 }
 
-/** Recados agrupados por destino y tipo: «2 panes a la casa vecina del norte». */
-function errandLines(ctx: Ctx, errands: readonly Errand[]): string[] {
-  const groups: { to: string; kind: string; n: number }[] = [];
-  for (const r of errands) {
-    const g = groups.find((x) => x.to === r.to && x.kind === r.kind);
-    if (g === undefined) groups.push({ to: r.to, kind: r.kind, n: 1 });
-    else g.n += 1;
-  }
-  groups.sort((a, b) => (a.to === b.to ? a.kind.localeCompare(b.kind) : a.to.localeCompare(b.to)));
-  return groups.map((g) => {
-    const dest = ctx.state.elements[g.to];
-    return dest === undefined ? errandText(g.kind, g.n) : `${errandText(g.kind, g.n)} ${destText(ctx, dest)}`;
-  });
+/** Tipo de un recado (P15), para su pictograma y su color; sin tabla de tipos, transporte. */
+export function errandType(content: CompiledContent, r: Errand): string {
+  return content.errands?.kinds[r.kind]?.type ?? 'transporte';
 }
 
+/**
+ * Recados agrupados por tipo y destino, con su pictograma: «a la casa vecina del norte ×2»,
+ * «0,5 kWh de casa al punto de carga», «2 h en el almacén común».
+ */
+function errandLines(ctx: Ctx, errands: readonly Errand[]): SheetLine[] {
+  const groups: { to: string; kind: string; first: Errand; n: number }[] = [];
+  for (const r of errands) {
+    const g = groups.find((x) => x.to === r.to && x.kind === r.kind);
+    if (g === undefined) groups.push({ to: r.to, kind: r.kind, first: r, n: 1 });
+    else g.n += 1;
+  }
+  const lines = groups.map((g) => {
+    const dest = ctx.state.elements[g.to];
+    const type = errandType(ctx.content, g.first);
+    let text: string;
+    if (dest === undefined) text = errandText(g.kind, g.n);
+    else if (g.first.work !== undefined)
+      text = t('errand.work', { d: duration(g.first.work), in: inText(ctx, dest) });
+    else if (g.first.takes !== undefined)
+      text = t('errand.takes', {
+        what: list(
+          Object.keys(g.first.takes)
+            .sort()
+            .map((res) => amount(res, g.first.takes?.[res] ?? 0)),
+        ),
+        dest: destText(ctx, dest),
+      });
+    else text = destText(ctx, dest);
+    if (g.n > 1) text = `${text} ×${g.n}`;
+    const title = has(`errand.${g.kind}`)
+      ? `${t(`type.${type}`)}: ${errandText(g.kind, g.n)}`
+      : t(`type.${type}`);
+    return {
+      picto: type,
+      text: cap(text),
+      title,
+      key: `${dest === undefined ? '' : elementLabel(ctx, dest)}|${type}`,
+    };
+  });
+  lines.sort((a, b) => a.key.localeCompare(b.key));
+  return lines.map(({ picto, text, title }) => ({ picto, text, title }));
+}
+
+/** Bultos que ocupan unos recados en el tope de un sitio (los de hacer cuentan uno). */
 function bultos(errands: readonly Errand[]): number {
+  return errands.reduce((n, r) => n + (r.size > 0 ? r.size : 1), 0);
+}
+
+/** Bultos de carga de un obrero (los de hacer no ocupan). */
+function cargo(errands: readonly Errand[]): number {
   return errands.reduce((n, r) => n + r.size, 0);
 }
 
@@ -235,7 +290,17 @@ function quoteMeta(ctx: Ctx, intent: OrderIntent, q: Quote): string {
   } else if (Object.keys(q.cost).length > 0) {
     parts.push(costText(q.cost));
   }
-  if ((intent.kind === 'hire' || intent.kind === 'move') && q.arrive !== null) {
+  if (q.gives !== undefined) {
+    const what = Object.keys(q.gives)
+      .sort()
+      .filter((r) => (q.gives?.[r] ?? 0) > 0)
+      .map((r) => amount(r, q.gives?.[r] ?? 0));
+    if (what.length > 0) parts.push(t('meta.gives', { what: list(what) }));
+  }
+  if (q.opens !== undefined) {
+    // Con curva (P14), el obrero queda libre al llegar: lo que importa es cuándo se abre.
+    parts.push(t('meta.opens', { when: when(msOf(ctx, q.opens), ctx.nowMs) }));
+  } else if ((intent.kind === 'hire' || intent.kind === 'move') && q.arrive !== null) {
     parts.push(t('meta.arrives', { when: when(msOf(ctx, q.arrive), ctx.nowMs) }));
   } else if (q.end !== null) {
     if (q.work > 0 && intent.kind !== 'deliver') parts.push(duration(q.work));
@@ -361,7 +426,7 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
   const kind = content.elements[e.kind];
   const flows = resolveFlows(state, content);
   const mine = e.owner === actor;
-  const lines = [...storeLines(ctx, e), ...flowLines(ctx, e, flows)];
+  const lines: SheetLine[] = [...storeLines(ctx, e), ...flowLines(ctx, e, flows)];
   if ((kind?.beds ?? 0) > 0 && mine) {
     lines.push(t('info.beds', { used: workersOf(state, actor), beds: bedsOf(state, content, actor) }));
   }
@@ -440,8 +505,10 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
   const table = content.errands;
   if (place !== undefined && table !== undefined && state.district.errands !== undefined) {
     const here = errandsAt(state, e.id);
-    const open = here.filter((r) => r.holder === undefined);
-    const kept = here.filter((r) => r.holder === actor);
+    // En un sitio propio (la casa), lo suyo es lo que genera; en los demás, lo que dejó el jugador.
+    const own = e.owner === actor;
+    const open = here.filter((r) => r.holder === undefined || (own && r.holder === actor));
+    const kept = own ? [] : here.filter((r) => r.holder === actor);
     const pay = [...open, ...kept].reduce((n, r) => n + r.pay, 0);
     const load = bultos(here);
     lines.push(
@@ -449,8 +516,9 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
         ? t('info.errandsNone')
         : t('info.errands', { n: load, cap: place.capacity, pay: amount(table.currency, pay) }),
     );
-    lines.push(...errandLines(ctx, open).map(cap));
-    for (const l of errandLines(ctx, kept)) lines.push(t('info.errandsYours', { what: l }));
+    lines.push(...errandLines(ctx, open));
+    for (const l of errandLines(ctx, kept))
+      if (typeof l !== 'string') lines.push({ ...l, text: t('info.errandsYours', { what: l.text }) });
     actions.push({
       id: 'route',
       label: t('act.route'),
@@ -465,7 +533,76 @@ function elementSheet(ctx: Ctx, e: Element, worker: Mobile | null): SheetView {
       orderAction(ctx, 'move', t('act.move'), { actor, kind: 'move', args: { mobile: w, to: e.id } }),
     );
   }
+  // Nombres (P16): lo propio y lo del común; en F1 se juega solo.
+  if (content.actions.name !== undefined && (mine || e.owner === undefined)) {
+    actions.push({
+      id: 'rename',
+      label: t('act.rename'),
+      meta: '',
+      enabled: true,
+      next: { kind: 'rename', element: e.id },
+    });
+  }
   return { title: elementLabel(ctx, e), lines, actions, worker, candidates: [] };
+}
+
+function renameSheet(ctx: Ctx, sel: Extract<Selection, { kind: 'rename' }>): SheetView | null {
+  const { state, content, actor } = ctx;
+  const max = content.actions.name?.maxLength;
+  if (max === undefined) return null;
+  const cancel: ActionView = { id: 'cancel', label: t('act.cancel'), meta: '', enabled: true, close: true };
+  if (sel.element !== undefined) {
+    const e = state.elements[sel.element];
+    if (e === undefined) return null;
+    const args = { element: e.id };
+    const actions: ActionView[] = [
+      {
+        id: 'rename-save',
+        label: t('act.renameSave'),
+        meta: '',
+        enabled: true,
+        takesInput: true,
+        intent: { actor, kind: 'rename', args: { ...args, name: e.name ?? '' } },
+      },
+    ];
+    if (e.name !== undefined)
+      actions.push(
+        orderAction(ctx, 'rename-reset', t('act.renameReset'), {
+          actor,
+          kind: 'rename',
+          args: { ...args, name: '' },
+        }),
+      );
+    actions.push(cancel);
+    return {
+      title: elementLabel(ctx, e),
+      lines: [t('rename.hint', { n: max })],
+      input: { value: e.name ?? '', max, placeholder: defaultLabel(ctx, e) },
+      actions,
+      worker: null,
+      candidates: [],
+    };
+  }
+  const m = sel.mobile === undefined ? undefined : state.mobiles[sel.mobile];
+  if (m === undefined) return null;
+  return {
+    title: m.name ?? m.id,
+    lines: [t('rename.hint', { n: max })],
+    input: { value: m.name ?? '', max, placeholder: m.name ?? '' },
+    actions: [
+      {
+        id: 'rename-save',
+        label: t('act.renameSave'),
+        meta: '',
+        enabled: true,
+        takesInput: true,
+        intent: { actor, kind: 'rename', args: { mobile: m.id, name: m.name ?? '' } },
+      },
+      cancel,
+    ],
+    worker: null,
+    candidates: [],
+  };
 }
 
 function sectorSheet(ctx: Ctx, hex: HexKey, pos: Vec, worker: Mobile | null): SheetView | null {
@@ -474,21 +611,29 @@ function sectorSheet(ctx: Ctx, hex: HexKey, pos: Vec, worker: Mobile | null): Sh
   if (s === undefined) return null;
   const w = worker?.id ?? '';
   if (s.status === 'hidden') {
-    return {
-      title: t('sector.hidden'),
-      lines: [],
-      actions: [
+    const lines: SheetLine[] = [];
+    const actions: ActionView[] = [];
+    const going = Object.keys(state.mobiles)
+      .sort()
+      .map((id) => state.mobiles[id])
+      .find((m) => m?.job?.kind === 'reveal' && m.job.hex === hex);
+    if (s.opening !== undefined) {
+      // P14: la apertura corre sola, de día y de noche.
+      lines.push(t('sector.opening', { when: when(msOf(ctx, s.opening.endTick), ctx.nowMs) }));
+    } else if (going !== undefined) {
+      lines.push(t('sector.goingToOpen', { name: going.name ?? going.id }));
+    } else {
+      actions.push(
         orderAction(ctx, 'reveal', t('act.reveal'), { actor, kind: 'reveal', args: { mobile: w, hex } }),
-      ],
-      worker,
-      candidates: [],
-    };
+      );
+    }
+    return { title: t('sector.hidden'), lines, actions, worker, candidates: [] };
   }
   const sector: Sector = s;
   const title = has(`terrain.${sector.terrain ?? ''}`)
     ? t(`terrain.${sector.terrain ?? ''}`)
     : t('sector.open');
-  const lines: string[] = [];
+  const lines: SheetLine[] = [];
   if (sector.revealedBy === actor && (sector.revealedTick ?? 0) > 0) lines.push(t('sector.byYou'));
   else if (sector.plot === null) lines.push(t('info.common'));
   const actions: ActionView[] = [];
@@ -565,15 +710,15 @@ function jobText(ctx: Ctx, m: Mobile): string {
 
 function mobileSheet(ctx: Ctx, m: Mobile): SheetView {
   const { state, content, actor } = ctx;
-  const lines = [t(`mob.${m.kind}`), workerStatus(ctx, m)];
+  const lines: SheetLine[] = [t(`mob.${m.kind}`), workerStatus(ctx, m)];
   if (m.hungry === true) lines.push(t('worker.hungry'));
   for (const r of Object.keys(m.cargo ?? {}).sort()) {
     lines.push(t('info.carrying', { what: amount(r, m.cargo?.[r] ?? 0) }));
   }
   const load = carriedBy(state, m.id);
   if (load.length > 0) {
-    lines.push(t('info.load', { n: bultos(load), cap: carryOf(content, m) }));
-    lines.push(...errandLines(ctx, load).map(cap));
+    lines.push(t('info.load', { n: cargo(load), cap: carryOf(content, m) }));
+    lines.push(...errandLines(ctx, load));
   }
   const actions: ActionView[] = [];
   const job = m.job;
@@ -623,6 +768,15 @@ function mobileSheet(ctx: Ctx, m: Mobile): SheetView {
       actions.push(unload);
     }
   }
+  if (m.owner === actor && content.actions.name !== undefined) {
+    actions.push({
+      id: 'rename',
+      label: t('act.rename'),
+      meta: '',
+      enabled: true,
+      next: { kind: 'rename', mobile: m.id },
+    });
+  }
   return { title: m.name ?? m.id, lines, actions, worker: m, candidates: [] };
 }
 
@@ -640,14 +794,15 @@ function routeSheet(ctx: Ctx, sel: Extract<Selection, { kind: 'route' }>): Sheet
   if (table === undefined) return null;
   const m = state.mobiles[sel.mobile];
   const intent: OrderIntent = { actor, kind: 'route', args: { mobile: sel.mobile, stops: sel.stops } };
-  const lines: string[] = [];
+  const lines: SheetLine[] = [];
   let go: ActionView;
   if (sel.stops.length === 0) {
     lines.push(t('route.pick'));
     go = { id: 'route-go', label: t('act.routeGo'), meta: '', enabled: false, intent };
   } else {
     go = orderAction(ctx, 'route-go', t('act.routeGo'), intent);
-    const plan = go.enabled && m !== undefined ? planRoute(state, content, m, actor, sel.stops) : null;
+    const planned = go.enabled && m !== undefined ? routePlan(state, content, m, actor, sel.stops) : null;
+    const plan = planned?.stops ?? null;
     const last = plan?.[plan.length - 1];
     const events = plan !== null && last !== undefined ? simulate(ctx, intent, last.leave + 1) : [];
     let delivered = 0;
@@ -664,6 +819,9 @@ function routeSheet(ctx: Ctx, sel: Extract<Selection, { kind: 'route' }>): Sheet
       const does: string[] = [];
       if (gives.length > 0) does.push(t('route.delivers', { n: gives.length }));
       if (takes.length > 0) does.push(t('route.picks', { n: takes.length }));
+      // Los recados de hacer (P15) alargan la parada donde se hacen.
+      const work = (planned?.duties ?? []).filter((d) => d.to === i).reduce((n, d) => n + d.work, 0);
+      if (work > 0) does.push(t('route.works', { d: duration(work) }));
       lines.push(
         does.length > 0
           ? t('route.stopDoes', { i: i + 1, place: name, what: list(does) })
@@ -797,25 +955,44 @@ export function sheetFor(ctx: Ctx, sel: Selection, preferred: string | null): Sh
     case 'route':
       view = routeSheet(ctx, sel);
       break;
+    case 'rename':
+      view = renameSheet(ctx, sel);
+      break;
   }
   if (view !== null && sel.kind !== 'mobile' && !needsWorker(view)) view.worker = null;
   return view;
 }
 
-/** Lo que la pizarra cuenta de los recados: qué hay en cada sitio y cuántos llevó cada uno. */
-export function errandBoard(ctx: Ctx): { places: string[]; delivered: Record<string, number> } | null {
+/**
+ * Lo que la pizarra cuenta de los recados: qué hay en cada sitio del común, cuántos esperan en
+ * la casa del jugador (el encargo del día es ya uno de ellos, P15) y cuántos llevó cada uno.
+ */
+export function errandBoard(
+  ctx: Ctx,
+): { places: string[]; open: number; home: number; delivered: Record<string, number> } | null {
   const es = ctx.state.district.errands;
   if (es === undefined) return null;
   const places: { label: string; n: number }[] = [];
+  let open = 0;
+  let home = 0;
   for (const id of placeIds(ctx.state, ctx.content)) {
     const e = ctx.state.elements[id];
-    const here = errandsAt(ctx.state, id).filter((r) => r.holder === undefined);
-    if (e === undefined || here.length === 0) continue;
-    places.push({ label: elementLabel(ctx, e), n: here.length });
+    if (e === undefined) continue;
+    const here = errandsAt(ctx.state, id);
+    if (e.owner === ctx.actor) {
+      home += here.filter((r) => r.holder === ctx.actor).length;
+      continue;
+    }
+    const common = here.filter((r) => r.holder === undefined);
+    if (common.length === 0) continue;
+    open += common.length;
+    places.push({ label: elementLabel(ctx, e), n: common.length });
   }
   places.sort((a, b) => a.label.localeCompare(b.label));
   return {
     places: places.map((p) => `${p.label}: ${amount('recados', p.n)}`),
+    open,
+    home,
     delivered: { ...es.delivered },
   };
 }

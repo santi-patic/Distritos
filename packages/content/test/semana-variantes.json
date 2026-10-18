@@ -1,32 +1,107 @@
 {
-  "description": "Variantes que mide la semana simulada (test/semana.test.ts): propuestas sobre las tablas reales, sin tocarlas. Cada una cambia la duración (segundos) y lo que da cada tarea.",
+  "description": "Variantes que mide la semana simulada (test/semana.test.ts): propuestas sobre las tablas reales, sin tocarlas. Cada una se mezcla sobre las tablas (patch).",
   "variants": [
     {
-      "id": "largas",
-      "title": "Talar y picar de 4 h que dan 20",
-      "tasks": {
-        "talar": { "seconds": 14400, "gives": { "madera": 20 } },
-        "picar": { "seconds": 14400, "gives": { "piedra": 20 } }
+      "id": "obras_baratas",
+      "title": "Obras y contratación más baratas (bomba 25, taller 20, contratar 15 Águilas)",
+      "patch": {
+        "builds": {
+          "bomba": {
+            "cost": {
+              "eagles": 25
+            }
+          },
+          "taller": {
+            "cost": {
+              "eagles": 20
+            }
+          }
+        },
+        "hires": {
+          "obrero_peon": {
+            "cost": {
+              "eagles": 15
+            }
+          }
+        }
       }
     },
     {
-      "id": "jornada",
-      "title": "Tareas de jornada (talar y picar de 10 h que dan 50; sacar agua de 5 h que llena el pozo)",
-      "tasks": {
-        "talar": { "seconds": 36000, "gives": { "madera": 50 } },
-        "picar": { "seconds": 36000, "gives": { "piedra": 50 } },
-        "sacar_agua": { "seconds": 18000, "gives": { "agua": 200 } }
+      "id": "recados_dobles",
+      "title": "Recados que pagan el doble",
+      "patch": {
+        "recados": {
+          "kinds": {
+            "pan": {
+              "pay": 2
+            },
+            "lena": {
+              "pay": 4
+            },
+            "medicinas": {
+              "pay": 4
+            },
+            "conservas": {
+              "pay": 2
+            },
+            "bateria_carga": {
+              "pay": 4
+            },
+            "cesta": {
+              "pay": 2
+            },
+            "energia_casa": {
+              "pay": 6
+            },
+            "comida_casa": {
+              "pay": 8
+            },
+            "obra": {
+              "pay": 12
+            },
+            "clases": {
+              "pay": 6
+            }
+          }
+        }
       }
     }
   ],
   "runs": [
-    { "variant": null, "hours": [9], "minutes": 10 },
-    { "variant": null, "hours": [21], "minutes": 10 },
-    { "variant": null, "hours": [9, 21], "minutes": 5 },
-    { "variant": "largas", "hours": [9], "minutes": 10 },
-    { "variant": "largas", "hours": [9, 21], "minutes": 5 },
-    { "variant": "jornada", "hours": [9], "minutes": 10 },
-    { "variant": "jornada", "hours": [21], "minutes": 10 },
-    { "variant": "jornada", "hours": [9, 21], "minutes": 5 }
+    {
+      "variant": null,
+      "hours": [9],
+      "minutes": 10
+    },
+    {
+      "variant": null,
+      "hours": [21],
+      "minutes": 10
+    },
+    {
+      "variant": null,
+      "hours": [9, 21],
+      "minutes": 5
+    },
+    {
+      "variant": "obras_baratas",
+      "hours": [9],
+      "minutes": 10
+    },
+    {
+      "variant": "obras_baratas",
+      "hours": [9, 21],
+      "minutes": 5
+    },
+    {
+      "variant": "recados_dobles",
+      "hours": [9],
+      "minutes": 10
+    },
+    {
+      "variant": "recados_dobles",
+      "hours": [9, 21],
+      "minutes": 5
+    }
   ]
 }

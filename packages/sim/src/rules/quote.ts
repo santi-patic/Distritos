@@ -7,16 +7,17 @@
 
 import { center, parse } from '../hex.js';
 import { nextWorkStart } from '../calendar.js';
-import type { CompiledContent } from '../types/content.js';
+import { isRevealCurve, type CompiledContent } from '../types/content.js';
 import type { Int, ResourceId, Tick } from '../types/ids.js';
 import type { OrderArgs, OrderIntent } from '../types/orders.js';
 import type { Mobile, SimState } from '../types/state.js';
 import { deliveryQuote } from './board.js';
-import { planRoute, stopWork } from './errands.js';
+import { routePlan, stopWork } from './errands.js';
 import { linkSpec } from './links.js';
 import { plannedArrival } from './movement.js';
 import { validate } from './orders.js';
-import { taskVariant } from './tasks.js';
+import { openingTicks } from './fog.js';
+import { planTask, taskVariant } from './tasks.js';
 import { baseWork, effectiveWork, planWork } from './work.js';
 
 export interface Quote {
@@ -32,6 +33,10 @@ export interface Quote {
   amount?: Int;
   /** Entregas: lo que se cobra al entregar. */
   pay?: Int;
+  /** Tareas de jornada: lo que dejará al terminar. */
+  gives?: Record<ResourceId, Int>;
+  /** Aperturas con curva: cuándo se abrirá el sector (el obrero queda libre al llegar). */
+  opens?: Tick;
 }
 
 const NONE: Quote = { cost: {}, work: 0, arrive: null, end: null };
@@ -58,8 +63,13 @@ export function quote(state: SimState, intent: OrderIntent, content: CompiledCon
       const args = intent.args as OrderArgs['reveal'];
       const m = mobileOf(state, args.mobile);
       const spec = content.actions.reveal;
-      const work = baseWork(state, actor, 'reveal', spec);
       const target = center(parse(args.hex), { hexW: state.scene.hexW, hexH: state.scene.hexH });
+      if (isRevealCurve(spec)) {
+        const arrive = plannedArrival(state, content, m, target, null);
+        const opens = arrive + openingTicks(state, actor, spec.curve);
+        return { cost: { [spec.resource]: spec.cost }, work: 0, arrive, end: arrive, opens };
+      }
+      const work = baseWork(state, actor, 'reveal', spec);
       const plan = planWork(state, content, m, target, null, work);
       if (plan === null) return null;
       return {
@@ -104,15 +114,16 @@ export function quote(state: SimState, intent: OrderIntent, content: CompiledCon
       const e = state.elements[args.element];
       if (t === undefined || e === undefined) return null;
       const variant = taskVariant(state, actor, t);
-      const work = baseWork(state, actor, `task:${args.task}`, variant);
-      const plan = planWork(state, content, m, e.pos, e.id, work);
+      const plan = planTask(state, content, m, actor, args.task, t, e);
       if (plan === null) return null;
-      return {
+      const out: Quote = {
         cost: { ...(variant.cost ?? {}) },
-        work: effectiveWork(content, m, work),
+        work: plan.work,
         arrive: plan.arrive,
         end: plan.end,
       };
+      if (plan.gives !== undefined) out.gives = { ...plan.gives };
+      return out;
     }
     case 'hire': {
       const args = intent.args as OrderArgs['hire'];
@@ -142,17 +153,21 @@ export function quote(state: SimState, intent: OrderIntent, content: CompiledCon
     case 'route': {
       const args = intent.args as OrderArgs['route'];
       const m = mobileOf(state, args.mobile);
-      const plan = planRoute(state, content, m, actor, args.stops);
-      const first = plan?.[0];
-      const last = plan?.[plan.length - 1];
+      const plan = routePlan(state, content, m, actor, args.stops);
+      const first = plan?.stops[0];
+      const last = plan?.stops[plan.stops.length - 1];
       const each = stopWork(state, content, m, actor);
       if (plan === null || first === undefined || last === undefined || each === null) return null;
-      // Trabajo con luz de todas las paradas; la espera de noche no cuenta (la dice `end`).
-      return { cost: {}, work: each * plan.length, arrive: first.arrive, end: last.leave };
+      // Trabajo con luz de todas las paradas y de los recados de hacer; la espera de noche no
+      // cuenta (la dice `end`).
+      let work = each * plan.stops.length;
+      for (const d of plan.duties) work += d.work;
+      return { cost: {}, work, arrive: first.arrive, end: last.leave };
     }
     case 'toggle':
     case 'cancel':
     case 'unload':
+    case 'rename':
     case 'skip':
     case 'content':
     case 'credit':

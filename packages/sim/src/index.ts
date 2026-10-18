@@ -28,7 +28,7 @@ export type * from './types/orders.js';
 export { ORDER_KINDS, SYSTEM_ORDER_KINDS, compareOrders } from './types/orders.js';
 export type * from './types/events.js';
 export type * from './types/content.js';
-export { NOTHING } from './types/content.js';
+export { NOTHING, isRevealCurve } from './types/content.js';
 
 // Escena, órdenes, paso, vista.
 export { createScene, EMPTY_CHARACTER } from './scene.js';
@@ -47,6 +47,7 @@ export {
   nextWorkStart,
   isDailyTick,
   nextDailyTick,
+  workWindow,
 } from './calendar.js';
 export { canSee, canEnter, PLOT_ACCESS, COMMON_ACCESS } from './access.js';
 
@@ -56,15 +57,18 @@ export type { Flows, StoreFlow } from './rules/flows.js';
 export { available, room, isPhysical } from './rules/inventory.js';
 export { capacityOf, levelOf } from './rules/elements.js';
 export { bedsOf, workersOf } from './rules/workers.js';
-export { taskVariant } from './rules/tasks.js';
+export { taskVariant, planTask } from './rules/tasks.js';
+export type { TaskPlan } from './rules/tasks.js';
+export { openingTicks } from './rules/fog.js';
 export { flowRoles } from './rules/links.js';
-export { planWork, effectiveWork, baseWork } from './rules/work.js';
+export { planWork, effectiveWork, baseWork, performance } from './rules/work.js';
 export { quote } from './rules/quote.js';
 export type { Quote } from './rules/quote.js';
 export { linkSpec } from './rules/links.js';
 export type { LinkSpec } from './rules/links.js';
 export { deliveryQuote } from './rules/board.js';
-export { planRoute, carriedBy, carryOf, errandsAt, placeIds } from './rules/errands.js';
+export { planRoute, routePlan, carriedBy, carryOf, errandsAt, placeIds } from './rules/errands.js';
+export type { RoutePlan, RouteDuty } from './rules/errands.js';
 export { speedBetween } from './rules/movement.js';
 
 import { hashOf } from './hash.js';

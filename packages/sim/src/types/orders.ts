@@ -34,6 +34,11 @@ export interface OrderArgs {
   cancel: { mobile: MobileId };
   /** Deja los recados que lleva un obrero parado en el sitio donde está. */
   unload: { mobile: MobileId };
+  /**
+   * Pone nombre a un lugar o a un obrero (P16): uno de los dos. Un nombre vacío devuelve al
+   * lugar el suyo por defecto; un obrero siempre tiene nombre.
+   */
+  rename: { element?: ElementId; mobile?: MobileId; name: string };
   // ---- del sistema (formato fijado ya; uso desde F2) ----
   /** Puesta al día más allá del tope: el tick salta sin producir. */
   skip: { ticks: Int };
@@ -59,6 +64,7 @@ export const ORDER_KINDS: readonly OrderKind[] = [
   'route',
   'cancel',
   'unload',
+  'rename',
   'skip',
   'content',
   'credit',
@@ -130,6 +136,8 @@ export type Reject =
   | 'not_a_place'
   | 'no_route'
   | 'place_full'
+  | 'opening'
+  | 'bad_name'
   | `insufficient:${ResourceId}`
   | `full:${ResourceId}`;
 

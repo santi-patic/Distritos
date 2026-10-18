@@ -1,0 +1,254 @@
+{
+  "name": "f1-tanda6",
+  "description": "F1 tanda 6 (contenido de prueba content-f1t): aperturas con curva y en paralelo, también de noche; sacar agua la primera vez corta y luego por jornadas (de día y dada de noche); nombres de lugares y obreros, y vuelta al nombre por defecto; rutas con los recados de la casa (llevar energía o comida de casa y horas de obra), reserva de los de hacer, corte que la suelta, durante dos días.",
+  "content": "content-f1t.json",
+  "params": {
+    "kind": "district",
+    "template": "f1_solo",
+    "seed": "00000000000000ac",
+    "actors": [
+      {
+        "id": "santi",
+        "plot": "p1"
+      }
+    ]
+  },
+  "orders": [
+    {
+      "seq": 1,
+      "tick": 0,
+      "actor": "sys",
+      "kind": "credit",
+      "args": {
+        "actor": "santi",
+        "resource": "energia",
+        "amount": 200000,
+        "ref": "dorado"
+      }
+    },
+    {
+      "seq": 2,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "1,0"
+      }
+    },
+    {
+      "seq": 3,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m2",
+        "hex": "-1,0"
+      }
+    },
+    {
+      "seq": 4,
+      "tick": 0,
+      "actor": "santi",
+      "kind": "rename",
+      "args": {
+        "element": "e1",
+        "name": "A Casa do Monte"
+      }
+    },
+    {
+      "seq": 5,
+      "tick": 60,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "0,1"
+      }
+    },
+    {
+      "seq": 6,
+      "tick": 130,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m2",
+        "hex": "2,0"
+      }
+    },
+    {
+      "seq": 7,
+      "tick": 200,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e5",
+        "task": "sacar_agua"
+      }
+    },
+    {
+      "seq": 8,
+      "tick": 210,
+      "actor": "santi",
+      "kind": "rename",
+      "args": {
+        "mobile": "m2",
+        "name": "Uxía"
+      }
+    },
+    {
+      "seq": 9,
+      "tick": 310,
+      "actor": "santi",
+      "kind": "route",
+      "args": {
+        "mobile": "m2",
+        "stops": ["e1", "e8", "e7", "e9"]
+      }
+    },
+    {
+      "seq": 10,
+      "tick": 1900,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e5",
+        "task": "sacar_agua"
+      }
+    },
+    {
+      "seq": 11,
+      "tick": 2500,
+      "actor": "santi",
+      "kind": "rename",
+      "args": {
+        "element": "e9",
+        "name": "Cociña"
+      }
+    },
+    {
+      "seq": 12,
+      "tick": 4400,
+      "actor": "santi",
+      "kind": "job",
+      "args": {
+        "mobile": "m1",
+        "element": "e5",
+        "task": "sacar_agua"
+      }
+    },
+    {
+      "seq": 13,
+      "tick": 4500,
+      "actor": "santi",
+      "kind": "route",
+      "args": {
+        "mobile": "m2",
+        "stops": ["e10", "e9", "e1", "e8"]
+      }
+    },
+    {
+      "seq": 14,
+      "tick": 4600,
+      "actor": "santi",
+      "kind": "cancel",
+      "args": {
+        "mobile": "m2"
+      }
+    },
+    {
+      "seq": 17,
+      "tick": 6300,
+      "actor": "santi",
+      "kind": "rename",
+      "args": {
+        "element": "e9",
+        "name": ""
+      }
+    },
+    {
+      "seq": 15,
+      "tick": 7800,
+      "actor": "santi",
+      "kind": "route",
+      "args": {
+        "mobile": "m2",
+        "stops": ["e1", "e8", "e7"]
+      }
+    },
+    {
+      "seq": 16,
+      "tick": 8300,
+      "actor": "santi",
+      "kind": "reveal",
+      "args": {
+        "mobile": "m1",
+        "hex": "1,1"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "tick": 1,
+      "hash": "9c94bc690a1882583a7f06a7e20f3e611c0896f6d720395d4f6dab227bf35ca3",
+      "view": "07d8859b2edd590375cdf03bbf1d650b74a12308325c51fa766cf1351e193dca"
+    },
+    {
+      "tick": 50,
+      "hash": "2ff12a070e57a2ede7f63afe67ead68e08bfaf927e64c4005215cb1346a407c2",
+      "view": "e46d62a4240305b0b04989fec440266ff300acde88bb480265bba20047754d28"
+    },
+    {
+      "tick": 130,
+      "hash": "a0543c50309acd65ea964aba20ac61fd44005dd5d9ebb8ddf40655e0266e8b81",
+      "view": "c9f844f1ab0db717b2f7272c27d38b0a57766d3ed5a57b770e145198a28d8ad8"
+    },
+    {
+      "tick": 310,
+      "hash": "b710c2748e9483621352918a0673f7f15d282323e4a81a785440baa0133bbb1f",
+      "view": "4c17a1d55baadf2672adb808ebe19c2192ab6e6c9a298d42baad7bb48ffd550f"
+    },
+    {
+      "tick": 1720,
+      "hash": "ec7541fa6bf5fc0015c045a0a9d8d0083631bc9128cd1001f0498e000a6055ae",
+      "view": "b8fe5da30d24fd0a2d0a8c789fe1270ed1e6f3d7917f640c349c30a7ac0b5192"
+    },
+    {
+      "tick": 2100,
+      "hash": "1ec148d99fac486ff84aed1ec2641bc55802cd937a397faa86587462a741f137",
+      "view": "803321b28e1b5ef2649fd04ece69df3a691e46d69dfc9c41211bbccf186d6068"
+    },
+    {
+      "tick": 3000,
+      "hash": "b93aaa0e082ef9189c535745e224e70d195b045a4388f185f12fb99fbdb63063",
+      "view": "1668cf9cf433dd41664728128497fcead79bb62aef2218612ca48264d25c121d"
+    },
+    {
+      "tick": 4500,
+      "hash": "a6ea9edfcea80fe8a1b2989829e5487ce70410e9640f051541651751c2ac2423",
+      "view": "c773b87899b25de753d6b275bfd8b72c9f3cbfb4462c37ddcdf8df87755debd8"
+    },
+    {
+      "tick": 6000,
+      "hash": "c76a6022ba919e6ff0fd44ab9819abbe1a283672e064a55b6d18c5ab2c688573",
+      "view": "c42ac2af9ba7cac1a880726cda63864175e97ee8487d3846dccb6881d84fecc4"
+    },
+    {
+      "tick": 7900,
+      "hash": "572e2df4e1dfd2db4a9dc3cfb75e89a224340f2ecb509e5abbb6e19b6c612806",
+      "view": "4609d5243337ca3b63ba0b9c73ac050ea15ae3df6cc06ccd4881bcb5682dfeb2"
+    },
+    {
+      "tick": 9000,
+      "hash": "4fb44df9a28516194fb6a3620fd1bd065e8ece69b6bdf5e350daf802a2415c01",
+      "view": "81aa61a5c1302ad38a43844cfd3206fc7d878657c504c06ac77573475e59c80c"
+    },
+    {
+      "tick": 12000,
+      "hash": "c785d28a469c3cbea0085ee587db92de2ab3f55c62bad4788a4b0b3be74f4f10",
+      "view": "7d6126f76589c5f58ad3aef4b4839230f0bba52b1852c8b141edb33ef18b5665"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@distritos/sim",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Simulación determinista compartida por cliente y servidor",
   "type": "module",
   "sideEffects": false,

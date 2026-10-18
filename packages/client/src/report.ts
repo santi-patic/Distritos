@@ -44,8 +44,8 @@ export interface DayStats {
   piedra: number;
   /** Recados entregados en total hasta ese día. */
   errands: number;
-  /** Águilas cobradas ese día por el encargo de la pizarra. */
-  encargos: number;
+  /** Águilas cobradas ese día por recados (y por el encargo de la pizarra, si lo hay). */
+  pay: number;
   /** Obreros sin comer al acabar el día. */
   hungry: number;
 }
@@ -147,7 +147,11 @@ export function analyze(save: SaveData, content: CompiledContent, actor: string)
       madera: available(s, content, actor, 'madera'),
       piedra: available(s, content, actor, 'piedra'),
       errands: s.district.errands?.delivered[actor] ?? 0,
-      encargos: events.reduce((n, e) => (e.kind === 'delivered' && e.actor === actor ? n + e.pay : n), 0),
+      pay: events.reduce(
+        (n, e) =>
+          (e.kind === 'delivered' || e.kind === 'errand_delivered') && e.actor === actor ? n + e.pay : n,
+        0,
+      ),
       hungry: mobiles.filter((m) => m.hungry === true).length,
     });
     if (end >= until) break;

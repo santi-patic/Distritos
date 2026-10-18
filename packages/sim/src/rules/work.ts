@@ -12,7 +12,7 @@ import { ceilDiv, mul } from '../arith.js';
 import { workEnd } from '../calendar.js';
 import type { Vec } from '../geom.js';
 import type { CompiledContent } from '../types/content.js';
-import type { ActorId, ElementId, Int, MobileId, Tick } from '../types/ids.js';
+import type { ActorId, ElementId, Int, MobileId, Permille, Tick } from '../types/ids.js';
 import type { Reject } from '../types/orders.js';
 import type { Mobile, SimState } from '../types/state.js';
 import { plannedArrival } from './movement.js';
@@ -54,12 +54,24 @@ export function markStarted(state: SimState, actor: ActorId, key: string, spec: 
   a.started = started;
 }
 
+/** Rendimiento de un obrero en milésimas: 1000, o `hungryPermille` si no ha comido. */
+export function performance(content: CompiledContent, m: Mobile): Permille {
+  if (m.hungry !== true) return 1000;
+  const permille = content.mobiles[m.kind]?.hungryPermille;
+  if (permille === undefined || permille >= 1000 || permille <= 0) return 1000;
+  return permille;
+}
+
 /** Trabajo efectivo de un obrero: sin comer, rinde `hungryPermille` milésimas. */
 export function effectiveWork(content: CompiledContent, m: Mobile, work: Int): Int {
-  if (m.hungry !== true) return work;
-  const permille = content.mobiles[m.kind]?.hungryPermille;
-  if (permille === undefined || permille >= 1000 || permille <= 0) return work;
+  const permille = performance(content, m);
+  if (permille === 1000) return work;
   return ceilDiv(mul(work, 1000), permille);
+}
+
+/** Si el actor no ha empezado nunca una tarea con variante corta (la primera vez vale la corta). */
+export function isFirstTime(state: SimState, actor: ActorId, key: string, spec: WorkSpecLike): boolean {
+  return spec.firstTicks !== undefined && (state.actors[actor]?.started?.[key] ?? 0) === 0;
 }
 
 export interface Plan {

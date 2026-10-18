@@ -94,7 +94,19 @@ export interface RawTerrain {
 }
 
 export interface RawActions {
-  reveal: { resource: string; costJ: number; seconds: number; firstSeconds?: number };
+  /**
+   * Abrir un sector: o trabajando `seconds` (y `firstSeconds` la primera vez), o con la curva de
+   * `curveSeconds` (P14): una duración por apertura, en el orden en que el jugador las empieza.
+   */
+  reveal: {
+    resource: string;
+    costJ: number;
+    seconds?: number;
+    firstSeconds?: number;
+    curveSeconds?: number[];
+  };
+  /** Nombres que pone el jugador (P16). */
+  name?: { maxLength: number };
 }
 
 export interface RawResource {
@@ -115,6 +127,8 @@ export interface RawTask extends RawWork {
   collect?: string;
   clean?: boolean;
   tool?: RawWork & { kind: string };
+  /** Tarea de jornada (P9): `gives` es lo que rinde cada `seconds` de trabajo. */
+  jornada?: boolean;
 }
 
 export interface RawBuild extends RawWork {
@@ -162,12 +176,26 @@ export interface RawPlace {
   every?: number;
 }
 
+export interface RawErrandKind {
+  to: string[];
+  size: number;
+  pay: number;
+  expiresSeconds?: number;
+  /** Tipo (P15): pictograma y color en la interfaz, y la clase (llevar o hacer). */
+  type?: string;
+  /** Recado de hacer: segundos de trabajo en el destino. */
+  workSeconds?: number;
+  /** Lo que se saca de las existencias de quien lo recoge. */
+  takes?: Record<string, number>;
+}
+
 export interface RawErrands {
   currency: string;
   stopSeconds: number;
   firstStopSeconds?: number;
   maxStops: number;
-  kinds: Record<string, { to: string[]; size: number; pay: number; expiresSeconds?: number }>;
+  types?: Record<string, { class: 'llevar' | 'hacer' }>;
+  kinds: Record<string, RawErrandKind>;
 }
 
 export interface RawTables {

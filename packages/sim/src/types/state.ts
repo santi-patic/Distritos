@@ -68,6 +68,15 @@ export interface Sector {
   /** Lo que se vio al abrir. */
   terrain?: KindId;
   access: Access;
+  /** F1 (P14). Apertura en curso: quién la empezó y cuándo se abre. */
+  opening?: Opening;
+}
+
+/** F1 (P14). Una apertura en marcha: el sector sigue oculto hasta `endTick`. */
+export interface Opening {
+  by: ActorId;
+  startTick: Tick;
+  endTick: Tick;
 }
 
 export interface MapState {
@@ -104,6 +113,8 @@ export interface Element {
   builtBy?: ActorId[];
   /** Degradación (F1): suciedad del panel o capacidad perdida de la batería, en milésimas. */
   wear?: Permille;
+  /** Nombre que le ha puesto un jugador (F1, P16); sin él, la interfaz lo nombra por su tipo. */
+  name?: string;
   /** Existencias de sus almacenes, por recurso (F1). La capacidad está en la tabla. */
   store?: Record<ResourceId, Int>;
   /** Restos de los acumuladores de flujo de cada almacén, por recurso (F1). */
@@ -144,6 +155,11 @@ export interface RevealJob {
   hex: HexKey;
   startTick: Tick;
   endTick: Tick;
+  /**
+   * F1 (P14). Con curva: el obrero solo va a empezar la apertura (la tarea acaba al llegar) y
+   * el sector se abre en este tick, fijado al dar la orden.
+   */
+  opens?: Tick;
 }
 
 /** F1. Levantar un edificio en un punto. */
@@ -172,6 +188,8 @@ export interface TaskJob {
   element: ElementId;
   startTick: Tick;
   endTick: Tick;
+  /** F1 (P9). Lo que deja al terminar una tarea de jornada, fijado al dar la orden. */
+  gives?: Record<ResourceId, Int>;
 }
 
 /** F1. Llevar a la tierra común lo que pide un encargo de la pizarra, o trabajar allí. */
@@ -316,10 +334,21 @@ export interface Errand {
   /** Sitio donde está, o null si lo lleva un obrero. */
   at: ElementId | null;
   carrier?: MobileId;
-  /** Quien lo recogió. Lo que deja en un sitio solo lo vuelve a recoger él. */
+  /**
+   * Quien lo recogió. Lo que deja en un sitio solo lo vuelve a recoger él. Los que genera un
+   * sitio con dueño (la casa del jugador) nacen suyos.
+   */
   holder?: ActorId;
   /** Tick en que caduca si sigue sin recoger. */
   expires?: Tick;
+  /** F1 (P15). Recado de hacer: ticks de trabajo con luz en la parada del destino. */
+  work?: Int;
+  /** F1 (P15). Lo que se saca de las existencias de quien lo recoge (llevar de casa). */
+  takes?: Record<ResourceId, Int>;
+  /** F1 (P15). Lo de `takes` ya se sacó: al volver a recogerlo no se saca otra vez. */
+  taken?: true;
+  /** F1 (P15). Recado de hacer comprometido por la ruta de este obrero al darla. */
+  assigned?: MobileId;
 }
 
 /** F1. Los recados del distrito. */

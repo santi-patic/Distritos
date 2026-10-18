@@ -87,18 +87,24 @@
           "dx": -14000,
           "dy": 20000,
           "store": {
-            "energia": 1800000
+            "energia": 3600000
           }
         },
         {
           "kind": "pozo",
           "dx": 22000,
-          "dy": 16000
+          "dy": 16000,
+          "store": {
+            "agua": 200
+          }
         },
         {
           "kind": "huerta",
           "dx": 24000,
-          "dy": -14000
+          "dy": -14000,
+          "store": {
+            "comida": 6
+          }
         }
       ],
       "mobiles": [

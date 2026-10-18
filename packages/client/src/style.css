@@ -329,6 +329,54 @@ button:focus-visible,
   margin-top: 1px;
 }
 
+/* Recados por tipo (P15): pictograma en tinta dentro de un cuadrado del color de su función. */
+.lines li.errand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.lines li.errand + li.errand {
+  margin-top: 4px;
+}
+
+.picto {
+  --picto-cut: var(--picto-bg);
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--picto-bg);
+  color: var(--night);
+}
+
+.picto-svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Nombres (P16). */
+.name-input {
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 18px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.name-input:focus {
+  outline: 2px solid var(--cal);
+  outline-offset: 1px;
+}
+
 .acts {
   display: grid;
   gap: 8px;

@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-for (const name of ['f0-basic', 'f1-basic', 'f1-recados']) {
+for (const name of ['f0-basic', 'f1-basic', 'f1-recados', 'f1-tanda6']) {
   test(`${name} (contenido de prueba) da en Chromium los hashes dorados de Node`, async ({ page }) => {
     const fixture = readJson(join(ROOT, 'sim', 'test', 'fixtures', `${name}.json`)) as Fixture;
     const tables = readJson(join(ROOT, 'sim', 'test', fixture.content ?? 'content.json'));

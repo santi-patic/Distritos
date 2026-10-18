@@ -43,12 +43,14 @@ describe('tablas del repositorio', () => {
     expect(c.scenes.district.hexW).toBe(86_602);
     expect(c.scenes.district.hexH).toBe(75_000);
     expect(c.scenes.district.maxCatchupTicks).toBe(30 * 864_000);
-    expect(c.actions.reveal).toEqual({
-      resource: 'energia',
-      cost: 360_000,
-      ticks: 108_000,
-      firstTicks: 3_000,
-    });
+    // Curva de apertura (P14): 30 s la primera, 1 min la segunda… 14 días la 36.ª.
+    const reveal = c.actions.reveal as { resource: string; cost: number; curve: number[] };
+    expect(reveal).toMatchObject({ resource: 'energia', cost: 360_000 });
+    expect(reveal.curve).toHaveLength(36);
+    expect(reveal.curve.slice(0, 7)).toEqual([300, 600, 1_200, 3_000, 9_000, 18_000, 36_000]);
+    expect(reveal.curve[22]).toBe(864_000);
+    expect(reveal.curve[35]).toBe(14 * 864_000);
+    expect(c.actions.name).toEqual({ maxLength: 24 });
     // 400 W de placa por el 293 ‰ del cielo gallego, en julios por día.
     expect(c.elements.panel?.produce).toEqual({
       resource: 'energia',
@@ -66,16 +68,27 @@ describe('tablas del repositorio', () => {
       firstTicks: 1_200,
       gives: { agua: 40 },
       into: 'self',
+      jornada: true,
     });
     expect(c.tasks?.limpiar?.tool).toEqual({ kind: 'taller', ticks: 72_000, cost: { energia: 720_000 } });
     expect(c.links?.cable).toMatchObject({ carries: 'energia', unitMm: 50_000, ticksPerUnit: 18_000 });
     expect(c.links?.camino).toMatchObject({ speedPermille: 2000, costPerUnit: { piedra: 5 } });
-    expect(c.board?.encargos[2]).toMatchObject({
-      id: 'obra_comun',
-      work: true,
-      amount: 144_000,
-      perTrip: 72_000,
+    // El encargo del día es ya un recado de la casa (P15): la pizarra no publica encargos.
+    expect(c.board?.encargos).toEqual([]);
+    expect(c.errands?.types?.trabajo).toEqual({ class: 'hacer' });
+    expect(c.errands?.kinds.obra).toEqual({
+      to: ['almacen_comun'],
+      size: 0,
+      pay: 6,
+      type: 'trabajo',
+      work: 72_000,
     });
+    expect(c.errands?.kinds.energia_casa).toMatchObject({
+      size: 2,
+      type: 'energia',
+      takes: { energia: 1_800_000 },
+    });
+    expect(c.mobiles.obrero_peon?.stats.speed).toBe(80_000);
     expect(c.mobiles.obrero_peon).toMatchObject({
       eats: { resource: 'comida', perDay: 1 },
       hungryPermille: 500,
@@ -109,40 +122,48 @@ describe('tablas del repositorio', () => {
     expect(((c.elements.casa?.consume?.perDay ?? 0) / 3_600_000).toFixed(2)).toBe('0.36');
   });
 
-  it('el sim arranca con ellas: la casa de F1 cableada, la tierra común y la pizarra', () => {
+  it('el sim arranca con ellas: la casa de F1 cableada, la tierra común y sin encargos', () => {
     const c = content();
     const s = createScene(casa, c);
     expect(Object.keys(s.map.sectors)).toHaveLength(37 + 6);
     expect(Object.keys(s.elements)).toHaveLength(6 + 7);
     expect(Object.keys(s.mobiles)).toHaveLength(2);
     expect(Object.keys(s.links)).toHaveLength(4);
-    expect(s.elements.e4?.store).toEqual({ energia: 1_800_000 });
+    // Batería llena (P14), pozo lleno y huerta madura (P11).
+    expect(s.elements.e4?.store).toEqual({ energia: 3_600_000 });
     expect(s.elements.e1?.store).toEqual({ comida: 20, madera: 0, piedra: 0 });
-    expect(s.district.board?.encargo).toMatchObject({ id: 1, kind: 'energia_carga', at: 'e7' });
-    // A medianoche las aperturas esperan a la luz de trabajo (6:30): la primera dura 5 minutos;
-    // la segunda, ya no es la primera vez, 3 horas.
+    expect(s.elements.e5?.store).toEqual({ agua: 200 });
+    expect(s.elements.e6?.store).toEqual({ comida: 6 });
+    expect(s.district.board).toBeUndefined();
+    // A medianoche también se abre (P14): el peón llega en 11 ticks y la primera apertura dura
+    // 30 s; la técnica llega en 15 y la segunda dura 1 min. Las dos a la vez.
     const log: Order[] = [
       { seq: 1, tick: 0, actor: 'a', kind: 'reveal', args: { mobile: 'm1', hex: '1,0' } },
       { seq: 2, tick: 0, actor: 'a', kind: 'reveal', args: { mobile: 'm2', hex: '0,1' } },
     ];
-    const early = replay(casa, log, 236_000, c);
+    const early = replay(casa, log, 311, c);
     expect(early.map.sectors['1,0']?.status).toBe('hidden');
+    expect(early.map.sectors['1,0']?.opening).toEqual({ by: 'a', startTick: 11, endTick: 311 });
+    expect(early.mobiles.m1?.job).toBeNull();
     const later = createScene(casa, c);
-    advance(later, log, 240_000, c);
+    advance(later, log, 312, c);
     expect(later.map.sectors['1,0']?.status).toBe('revealed');
     expect(later.map.sectors['0,1']?.status).toBe('hidden');
-    advance(later, log, 234_000 + 108_000 + 100, c);
+    advance(later, log, 616, c);
     expect(later.map.sectors['0,1']?.status).toBe('revealed');
+    expect(later.elements.e4?.store?.energia).toBeLessThan(3_600_000 - 2 * 360_000);
   });
 
   it('recados: los sitios del común empiezan con los suyos y una ruta tiene horario conocido', () => {
     const c = content();
     const s = createScene({ ...casa, dayOffset: 10 * 36_000 }, c);
     const errands = Object.values(s.district.errands?.items ?? {});
-    // Cocina 2, almacén 2, dispensario 1, punto de carga 1; las casas vecinas empiezan vacías.
-    expect(errands).toHaveLength(6);
-    expect(c.errands).toMatchObject({ stopTicks: 9_000, firstStopTicks: 600, maxStops: 8 });
-    expect(c.places?.cocina_comun).toMatchObject({ capacity: 4, everyTicks: 144_000 });
+    // Cocina 4, almacén 4, dispensario 2, punto de carga 2 (P13) y uno de la casa, suyo (P15);
+    // las casas vecinas empiezan vacías.
+    expect(errands).toHaveLength(13);
+    expect(errands.filter((r) => r.at === 'e1').map((r) => r.holder)).toEqual(['a']);
+    expect(c.errands).toMatchObject({ stopTicks: 3_000, firstStopTicks: 600, maxStops: 8 });
+    expect(c.places?.cocina_comun).toMatchObject({ capacity: 8, everyTicks: 72_000 });
     expect(c.mobiles.obrero_peon?.carry).toBe(4);
     const route = { actor: 'a', kind: 'route' as const, args: { mobile: 'm1', stops: ['e8', 'e9'] } };
     const first = quote(s, route, c);
@@ -219,8 +240,11 @@ describe('el compilador rechaza', () => {
     t.tasks.talar!.gives = { oro: 1 };
     expect(() => compile(t)).toThrow(/recurso desconocido oro/);
     const u = clone<RawTables>(tables);
-    u.board.encargos[0]!.at = 'castillo';
+    u.board.encargos.push({ id: 'x', at: 'castillo', resource: 'energia', amount: 1, perTrip: 1, reward: 1 });
     expect(() => compile(u)).toThrow(/elemento desconocido castillo/);
+    const v = clone<RawTables>(tables);
+    v.recados.kinds.energia_casa!.takes = { oro: 1 };
+    expect(() => compile(v)).toThrow(/recurso desconocido oro/);
     const w = clone<RawTables>(tables);
     w.archetypes.finca_prado!.start.links![0]!.b = 99;
     expect(() => compile(w)).toThrow(/fuera de la dotación/);
@@ -228,7 +252,7 @@ describe('el compilador rechaza', () => {
 
   it('recados con destinos que no son sitios, o sitios que generan sin decir cada cuánto', () => {
     const t = clone<RawTables>(tables);
-    t.recados.kinds.pan!.to = ['casa'];
+    t.recados.kinds.pan!.to = ['panel'];
     expect(() => compile(t)).toThrow(/no es un sitio de recados/);
     const u = clone<RawTables>(tables);
     u.places.cocina_comun!.makes = [{ kind: 'tarta', weight: 1 }];
@@ -236,6 +260,30 @@ describe('el compilador rechaza', () => {
     const w = clone<RawTables>(tables);
     delete w.places.cocina_comun!.every;
     expect(() => compile(w)).toThrow(/cada cuánto/);
+  });
+
+  it('recados de hacer que ocupan carga, de llevar sin carga o con un tipo que no casa', () => {
+    const t = clone<RawTables>(tables);
+    t.recados.kinds.obra!.size = 1;
+    expect(() => compile(t)).toThrow(/no ocupa carga/);
+    const u = clone<RawTables>(tables);
+    u.recados.kinds.pan!.size = 0;
+    expect(() => compile(u)).toThrow(/al menos un bulto/);
+    const w = clone<RawTables>(tables);
+    w.recados.kinds.pan!.type = 'trabajo';
+    expect(() => compile(w)).toThrow(/es de hacer y el recado no/);
+    const x = clone<RawTables>(tables);
+    x.recados.kinds.pan!.type = 'fiesta';
+    expect(() => compile(x)).toThrow(/tipo desconocido fiesta/);
+  });
+
+  it('abrir con tiempo fijo y con curva a la vez, o sin ninguno', () => {
+    const t = clone<RawTables>(tables);
+    t.actions.reveal.seconds = 600;
+    expect(() => compile(t)).toThrow(/uno de los dos/);
+    const u = clone<RawTables>(tables);
+    delete u.actions.reveal.curveSeconds;
+    expect(() => compile(u)).toThrow(/uno de los dos/);
   });
 
   it('flujos que no se pueden resolver', () => {

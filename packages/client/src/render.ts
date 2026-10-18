@@ -24,6 +24,7 @@ import {
   type Vec,
 } from '@distritos/sim';
 import type { Clock } from './game.js';
+import { typeColor } from './pictos.js';
 
 export const PALETTE = {
   bg: 0x0f1820,
@@ -245,10 +246,14 @@ interface Drawn {
   r: number;
 }
 
-/** Un recado dibujado: cuántos bultos ocupa y si es propio (relleno) o del común (hueco). */
+/**
+ * Un recado dibujado: cuántos bultos ocupa (los de hacer, uno), si es propio (relleno) o del
+ * común (hueco) y el color de su tipo (P15).
+ */
 interface Parcel {
   size: number;
   mine: boolean;
+  color: number;
 }
 
 /**
@@ -282,8 +287,8 @@ function parcels(
       a.x - px * h,
       a.y - py * h,
     ];
-    if (it.mine) g.poly(pts).fill({ color: PALETTE.cal, alpha: 0.95 });
-    else g.poly(pts).stroke({ width: 1.5, color: PALETTE.cal, alpha: 0.9 });
+    if (it.mine) g.poly(pts).fill({ color: it.color, alpha: 0.95 });
+    else g.poly(pts).stroke({ width: 1.5, color: it.color, alpha: 0.9 });
     d += len + gap * 1.8;
   }
 }
@@ -500,6 +505,8 @@ export class Renderer {
     const hexR = this.hexRadius(v);
     const sectors = v.map.sectors;
     const revealed = (q: number, r: number): boolean => sectors[H.keyOf(q, r)]?.status === 'revealed';
+    const pending: Record<string, true> = {};
+    for (const m of Object.values(v.mobiles)) if (m.job?.kind === 'reveal') pending[m.job.hex] = true;
     for (const [k, s] of Object.entries(sectors)) {
       const c = worldToScreen(this.camera, H.center({ q: s.q, r: s.r }, lat));
       const pts = hexPoints(c.x, c.y, hexR * 0.965);
@@ -514,6 +521,16 @@ export class Renderer {
           color: openable ? PALETTE.fogOpen : PALETTE.fogDot,
           alpha: openable ? 0.75 : 1,
         });
+        const o = s.opening;
+        if (o !== undefined) {
+          // P14: la apertura en marcha, como el anillo de una tarea.
+          const now = input.clock.tick + input.clock.fraction;
+          const frac = (now - o.startTick) / Math.max(1, o.endTick - o.startTick);
+          ring(g, c.x, c.y, Math.max(6, hexR * 0.16), frac, PALETTE.cal, Math.max(2, hexR * 0.03));
+        } else if (pending[k] === true) {
+          // Alguien va a empezar a abrirlo.
+          g.circle(c.x, c.y, Math.max(6, hexR * 0.16)).stroke({ width: 1.5, color: PALETTE.cal, alpha: 0.5 });
+        }
         continue;
       }
       const sector = s;
@@ -626,12 +643,17 @@ export class Renderer {
       if (here !== undefined && here.length > 0) {
         // Debajo del sitio (los obreros paran encima): lo que espera a que alguien lo lleve.
         const side = Math.max(4.5, r * 0.5);
-        const items = here.map((e) => ({ size: e.size, mine: e.holder === v.viewer }));
+        const items = here.map((e) => this.parcel(e, v, content));
         const y = p.y + r + 2 * Math.max(2, r * 0.22) + 6 + side / 2;
         parcels(g, { x: p.x - parcelsLength(side, items) / 2, y }, 1, 0, side, items);
       }
     }
     this.drawnElements = drawn;
+  }
+
+  private parcel(e: Errand, v: PublicState, content: CompiledContent): Parcel {
+    const type = content.errands?.kinds[e.kind]?.type;
+    return { size: Math.max(1, e.size), mine: e.holder === v.viewer, color: typeColor(type) };
   }
 
   private drawElement(
@@ -887,7 +909,7 @@ export class Renderer {
           ux,
           uy,
           Math.max(3.5, r * 0.5),
-          load.map((e) => ({ size: e.size, mine: e.holder === v.viewer })),
+          load.map((e) => this.parcel(e, v, input.content)),
         );
       }
       if (id === highlight.mobile) {

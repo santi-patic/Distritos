@@ -10,7 +10,7 @@
 import { canEnter } from '../access.js';
 import { center, parse } from '../hex.js';
 import { get, sortedKeys } from '../iter.js';
-import type { CompiledContent } from '../types/content.js';
+import { isRevealCurve, type CompiledContent } from '../types/content.js';
 import type { Event } from '../types/events.js';
 import { SYSTEM_ACTOR, type ActorId } from '../types/ids.js';
 import type { Order, OrderArgs, OrderIntent, OrderKind, Reject } from '../types/orders.js';
@@ -27,7 +27,7 @@ import {
   validateRoute,
   validateUnload,
 } from './errands.js';
-import { hasRevealedNeighbor } from './fog.js';
+import { countOpening, hasRevealedNeighbor, openingPending, openingTicks } from './fog.js';
 import { available, pay, put, take } from './inventory.js';
 import { startLink, validateLink } from './links.js';
 import { startTrip } from './movement.js';
@@ -71,11 +71,57 @@ function validateReveal(
   if (sector.status !== 'hidden') return 'not_hidden';
   if (!canEnter(state, actor, sector)) return 'no_access';
   if (!hasRevealedNeighbor(state, args.hex)) return 'not_adjacent';
-  const cost = content.actions.reveal;
-  if (available(state, content, actor, cost.resource) < cost.cost) return `insufficient:${cost.resource}`;
+  const spec = content.actions.reveal;
+  // Con curva (P14), una apertura por sector: la que está en marcha o a la que ya va alguien.
+  if (isRevealCurve(spec) && (sector.opening !== undefined || openingPending(state, args.hex)))
+    return 'opening';
+  if (available(state, content, actor, spec.resource) < spec.cost) return `insufficient:${spec.resource}`;
+  // Con curva no hace falta luz: el obrero solo va a empezarla y el tiempo corre de noche también.
+  if (isRevealCurve(spec)) return null;
   const target = center(parse(args.hex), latticeOf(state));
-  if (planWork(state, content, m, target, null, baseWork(state, actor, 'reveal', cost)) === null)
+  if (planWork(state, content, m, target, null, baseWork(state, actor, 'reveal', spec)) === null)
     return 'dark';
+  return null;
+}
+
+/** Un nombre de jugador: sin caracteres de control, sin espacios en los bordes, hasta el largo de la tabla. */
+function validName(name: string, maxLength: number): boolean {
+  if (name.length > maxLength) return false;
+  if (name.startsWith(' ') || name.endsWith(' ')) return false;
+  for (let i = 0; i < name.length; i++) {
+    const c = name.charCodeAt(i);
+    if (c < 0x20 || (c >= 0x7f && c < 0xa0)) return false;
+  }
+  return true;
+}
+
+function validateRename(
+  state: SimState,
+  content: CompiledContent,
+  actor: ActorId,
+  args: unknown,
+): Reject | null {
+  if (!isRecord(args) || typeof args.name !== 'string') return 'bad_args';
+  const spec = content.actions.name;
+  if (spec === undefined) return 'bad_name';
+  const element = args.element;
+  const mobile = args.mobile;
+  if ((element === undefined) === (mobile === undefined)) return 'bad_args';
+  if (!validName(args.name, spec.maxLength)) return 'bad_name';
+  if (element !== undefined) {
+    if (!isStr(element)) return 'bad_args';
+    const e = state.elements[element];
+    if (e === undefined) return 'unknown_element';
+    // Lo propio y lo del común (en F1 se juega solo; desde F5 lo del común lo nombra el distrito).
+    if (e.owner !== undefined && e.owner !== actor) return 'not_owner';
+    if ((e.name ?? '') === args.name) return 'unchanged';
+    return null;
+  }
+  if (!isStr(mobile)) return 'bad_args';
+  const m = ownMobile(state, actor, mobile);
+  if (typeof m === 'string') return m;
+  if (args.name.length === 0) return 'bad_name';
+  if (m.name === args.name) return 'unchanged';
   return null;
 }
 
@@ -155,6 +201,8 @@ export function validate(state: SimState, intent: OrderIntent, content: Compiled
       return validateCancel(state, intent.actor, intent.args);
     case 'unload':
       return validateUnload(state, content, intent.actor, intent.args);
+    case 'rename':
+      return validateRename(state, content, intent.actor, intent.args);
     case 'skip': {
       const { ticks } = intent.args as OrderArgs['skip'];
       return Number.isSafeInteger(ticks) && ticks > 0 ? null : 'bad_amount';
@@ -187,12 +235,28 @@ function execute(
     case 'reveal': {
       const args = order.args as OrderArgs['reveal'];
       const m = get(state.mobiles, args.mobile, 'móvil');
-      const cost = content.actions.reveal;
+      const spec = content.actions.reveal;
       const target = center(parse(args.hex), latticeOf(state));
-      const plan = planWork(state, content, m, target, null, baseWork(state, order.actor, 'reveal', cost));
+      if (isRevealCurve(spec)) {
+        // P14: el obrero va a empezar la apertura; su duración se fija ahora por la curva.
+        const ticks = openingTicks(state, order.actor, spec.curve);
+        pay(state, content, order.actor, { [spec.resource]: spec.cost }, events, 'reveal');
+        countOpening(state, order.actor);
+        const trip = startTrip(state, content, m, target, null, order.seq);
+        m.job = {
+          kind: 'reveal',
+          hex: args.hex,
+          startTick: trip.arriveTick,
+          endTick: trip.arriveTick,
+          opens: trip.arriveTick + ticks,
+        };
+        events.push({ tick: state.tick, kind: 'trip_started', mobile: m.id, arriveTick: trip.arriveTick });
+        return;
+      }
+      const plan = planWork(state, content, m, target, null, baseWork(state, order.actor, 'reveal', spec));
       if (plan === null) throw new Error('abrir: sin luz (debió rechazarse)');
-      pay(state, content, order.actor, { [cost.resource]: cost.cost }, events, 'reveal');
-      markStarted(state, order.actor, 'reveal', cost);
+      pay(state, content, order.actor, { [spec.resource]: spec.cost }, events, 'reveal');
+      markStarted(state, order.actor, 'reveal', spec);
       const trip = startTrip(state, content, m, target, null, order.seq);
       m.job = { kind: 'reveal', hex: args.hex, startTick: plan.arrive, endTick: plan.end };
       events.push({ tick: state.tick, kind: 'trip_started', mobile: m.id, arriveTick: trip.arriveTick });
@@ -229,6 +293,20 @@ function execute(
     case 'unload':
       applyUnload(state, content, order, events);
       return;
+    case 'rename': {
+      const args = order.args as OrderArgs['rename'];
+      if (args.element !== undefined) {
+        const e = get(state.elements, args.element, 'elemento');
+        if (args.name.length === 0) delete e.name;
+        else e.name = args.name;
+        events.push({ tick: state.tick, kind: 'renamed', target: e.id, name: args.name });
+        return;
+      }
+      const m = get(state.mobiles, args.mobile ?? '', 'móvil');
+      m.name = args.name;
+      events.push({ tick: state.tick, kind: 'renamed', target: m.id, name: args.name });
+      return;
+    }
     case 'skip': {
       const { ticks } = order.args as OrderArgs['skip'];
       effects.skip += ticks;

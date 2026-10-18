@@ -27,6 +27,7 @@ const ORDER_NAMES: Record<string, string> = {
   route: 'ruta',
   cancel: 'cancelar ruta',
   unload: 'dejar carga',
+  rename: 'renombrar',
   skip: 'salto',
 };
 
@@ -175,7 +176,7 @@ function render(list: Loaded[]): void {
           'Energía (kWh)',
           'Madera / piedra',
           'Recados',
-          'Encargos (Águilas)',
+          'Águilas de recados',
           'Sin comer',
         ],
         r.days.map((d) => [
@@ -193,7 +194,7 @@ function render(list: Loaded[]): void {
           kwh(d.energia),
           `${d.madera} / ${d.piedra}`,
           d.errands,
-          d.encargos,
+          d.pay,
           d.hungry,
         ]),
         [4, 7],

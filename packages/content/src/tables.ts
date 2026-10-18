@@ -32,5 +32,5 @@ export const tables: RawTables = {
   hires: hires,
   board: board,
   places: places,
-  recados: recados,
+  recados: recados as RawTables['recados'],
 };

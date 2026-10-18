@@ -294,10 +294,14 @@ describe('fuzz', () => {
 describe.each([
   ['los flujos de F1', 'content-f1.json'],
   ['los recados de F1', 'content-f1r.json'],
+  ['la tanda 6 de F1 (curva, jornada, nombres, recados por tipo)', 'content-f1t.json'],
 ])('rápido = lento con %s', (_name, file) => {
   const c1 = testContentNamed(file);
   const errands = c1.errands !== undefined;
-  // Con recados se sortean también rutas, cortes y descargas; sin ellos, la lista de siempre.
+  const names = c1.actions.name !== undefined;
+  const encargos = (c1.board?.encargos.length ?? 0) > 0;
+  // Con recados se sortean también rutas, cortes y descargas; con nombres, renombrar; sin
+  // encargos en la pizarra, no se entrega.
   const KINDS: readonly OrderKind[] = [
     'move',
     'reveal',
@@ -310,11 +314,12 @@ describe.each([
     'job',
     'toggle',
     'hire',
-    'deliver',
-    'deliver',
+    ...(encargos ? (['deliver', 'deliver'] as const) : []),
     ...(errands ? (['route', 'route', 'cancel', 'unload'] as const) : []),
+    ...(names ? (['rename', 'route'] as const) : []),
     'credit',
   ];
+  const NAMES = ['A Eira', 'Casa de Arriba', '', ' x', 'x'.repeat(40), 'Lúa'];
   const params: SceneParams = {
     kind: 'district',
     template: 'f1_dos',
@@ -409,7 +414,18 @@ describe.each([
               const places = elements.filter((e) => c1.places?.[live.elements[e]!.kind] !== undefined);
               const pool = places.length > 0 ? places : elements;
               const stops: string[] = [];
-              for (let n = 1 + draw(5); n > 0; n--) stops.push(draw(12) === 0 ? anyElement() : pick(pool));
+              // Con la tanda 6, la mitad de las rutas van de un sitio con recados a sus destinos:
+              // al azar casi nunca coinciden y no se verían recoger los de hacer ni los de casa.
+              const waiting = Object.values(live.district.errands?.items ?? {})
+                .filter((r) => r.at !== null && (r.holder === undefined || r.holder === actor))
+                .sort((x, y) => x.id - y.id);
+              if (names && waiting.length > 0 && draw(2) === 0) {
+                const r = pick(waiting);
+                stops.push(r.at!, r.to);
+                for (let n = draw(3); n > 0; n--) stops.push(pick(pool));
+              } else {
+                for (let n = 1 + draw(5); n > 0; n--) stops.push(draw(12) === 0 ? anyElement() : pick(pool));
+              }
               return { actor, kind, args: { mobile: pick(mobiles), stops } };
             }
             case 'cancel': {
@@ -420,6 +436,10 @@ describe.each([
               const loaded = mobiles.filter((m) => carriedBy(live, m).length > 0);
               return { actor, kind, args: { mobile: loaded.length > 0 ? pick(loaded) : pick(mobiles) } };
             }
+            case 'rename':
+              return draw(3) === 0
+                ? { actor, kind, args: { mobile: pick(mobiles), name: pick(NAMES) } }
+                : { actor, kind, args: { element: anyElement(), name: pick(NAMES) } };
             default:
               return {
                 actor: 'sys',
@@ -472,8 +492,10 @@ describe.each([
     }
     // Algo tiene que haber pasado de verdad: cada orden de F1 se ha aceptado alguna vez.
     const kinds = errands
-      ? ['build', 'link', 'job', 'deliver', 'reveal', 'move', 'route', 'cancel', 'unload']
-      : ['build', 'link', 'job', 'toggle', 'hire', 'deliver', 'reveal', 'move'];
+      ? ['build', 'link', 'job', 'reveal', 'move', 'route', 'cancel', 'unload']
+      : ['build', 'link', 'job', 'toggle', 'hire', 'reveal', 'move'];
+    if (encargos) kinds.push('deliver');
+    if (names) kinds.push('rename');
     for (const k of kinds) {
       expect(totals[k] ?? 0, `órdenes ${k} aceptadas`).toBeGreaterThan(0);
     }

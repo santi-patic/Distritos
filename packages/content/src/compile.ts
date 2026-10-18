@@ -22,6 +22,7 @@ import {
   type MobileKind,
   type PlaceKind,
   type ResourceKind,
+  type RevealWork,
   type SceneKind,
   type SceneTable,
   type TaskKind,
@@ -251,6 +252,15 @@ function checkReferences(tables: RawTables, errors: string[]): void {
     if (m.eats !== undefined) resource(`mobiles.${id}.eats`, m.eats.resource);
   }
   resource('actions.reveal', tables.actions.reveal.resource);
+  {
+    const r = tables.actions.reveal;
+    if ((r.seconds === undefined) === (r.curveSeconds === undefined))
+      errors.push(
+        'actions.reveal: o seconds (abrir trabajando) o curveSeconds (curva de apertura), uno de los dos',
+      );
+    if (r.curveSeconds !== undefined && r.firstSeconds !== undefined)
+      errors.push('actions.reveal: firstSeconds no vale con curva (la curva ya empieza corta)');
+  }
   for (const [id, t] of entriesOf(tables.tasks)) {
     for (const k of t.at) element(`tasks.${id}.at`, k);
     amounts(`tasks.${id}.cost`, t.cost);
@@ -277,11 +287,28 @@ function checkReferences(tables: RawTables, errors: string[]): void {
     amounts(`hires.${id}.cost`, h.cost);
   }
   resource('recados.currency', tables.recados.currency);
+  const types = tables.recados.types;
   for (const [id, k] of entriesOf(tables.recados.kinds)) {
     for (const to of k.to) {
       element(`recados.kinds.${id}.to`, to);
       if (!has('places', to)) errors.push(`recados.kinds.${id}.to: ${to} no es un sitio de recados`);
     }
+    amounts(`recados.kinds.${id}.takes`, k.takes);
+    // Clase del tipo (P15): los de hacer no ocupan carga y llevan su trabajo; los de llevar, al revés.
+    const hacer = k.workSeconds !== undefined;
+    if (hacer && k.size !== 0) errors.push(`recados.kinds.${id}: un recado de hacer no ocupa carga (size 0)`);
+    if (!hacer && k.size < 1) errors.push(`recados.kinds.${id}: un recado de llevar ocupa al menos un bulto`);
+    if (hacer && k.takes !== undefined)
+      errors.push(`recados.kinds.${id}: un recado de hacer no lleva nada (takes)`);
+    if (types !== undefined) {
+      if (k.type === undefined) errors.push(`recados.kinds.${id}: falta el tipo (type)`);
+      else {
+        const t = types[k.type];
+        if (t === undefined) errors.push(`recados.kinds.${id}.type: tipo desconocido ${k.type}`);
+        else if ((t.class === 'hacer') !== hacer)
+          errors.push(`recados.kinds.${id}: el tipo ${k.type} es de ${t.class} y el recado no`);
+      }
+    } else if (k.type !== undefined) errors.push(`recados.kinds.${id}.type: no hay tabla de tipos (types)`);
   }
   for (const [id, p] of entriesOf(tables.places)) {
     element(`places.${id}`, id);
@@ -384,18 +411,28 @@ export function compile(tables: RawTables): CompiledContent {
     mobiles[k] = out;
   }
 
-  const reveal: CompiledContent['actions']['reveal'] = {
-    resource: tables.actions.reveal.resource,
-    cost: tables.actions.reveal.costJ,
-    ticks: secondsToTicks(tables.actions.reveal.seconds, tickMs, 'actions.reveal.seconds'),
-  };
-  if (tables.actions.reveal.firstSeconds !== undefined) {
-    reveal.firstTicks = secondsToTicks(
-      tables.actions.reveal.firstSeconds,
-      tickMs,
-      'actions.reveal.firstSeconds',
-    );
+  const rawReveal = tables.actions.reveal;
+  let reveal: CompiledContent['actions']['reveal'];
+  if (rawReveal.curveSeconds !== undefined) {
+    reveal = {
+      resource: rawReveal.resource,
+      cost: rawReveal.costJ,
+      curve: rawReveal.curveSeconds.map((sec, i) =>
+        secondsToTicks(sec, tickMs, `actions.reveal.curveSeconds[${i}]`),
+      ),
+    };
+  } else {
+    const work: RevealWork = {
+      resource: rawReveal.resource,
+      cost: rawReveal.costJ,
+      ticks: secondsToTicks(rawReveal.seconds ?? 0, tickMs, 'actions.reveal.seconds'),
+    };
+    if (rawReveal.firstSeconds !== undefined)
+      work.firstTicks = secondsToTicks(rawReveal.firstSeconds, tickMs, 'actions.reveal.firstSeconds');
+    reveal = work;
   }
+  const actions: CompiledContent['actions'] = { reveal };
+  if (tables.actions.name !== undefined) actions.name = { maxLength: tables.actions.name.maxLength };
 
   const resources: Record<string, ResourceKind> = {};
   for (const [k, r] of entriesOf(tables.resources)) resources[k] = { physical: r.physical, order: r.order };
@@ -409,6 +446,7 @@ export function compile(tables: RawTables): CompiledContent {
     if (t.clean !== undefined) out.clean = t.clean;
     if (t.tool !== undefined)
       out.tool = { kind: t.tool.kind, ...compileWork(t.tool, tickMs, `tasks.${k}.tool`) };
+    if (t.jornada !== undefined) out.jornada = t.jornada;
     tasks[k] = out;
   }
 
@@ -479,10 +517,16 @@ export function compile(tables: RawTables): CompiledContent {
         const out: ErrandTable['kinds'][string] = { to: [...e.to], size: e.size, pay: e.pay };
         if (e.expiresSeconds !== undefined)
           out.expiresTicks = secondsToTicks(e.expiresSeconds, tickMs, `recados.kinds.${k}.expiresSeconds`);
+        if (e.type !== undefined) out.type = e.type;
+        if (e.workSeconds !== undefined)
+          out.work = secondsToTicks(e.workSeconds, tickMs, `recados.kinds.${k}.workSeconds`);
+        if (e.takes !== undefined) out.takes = { ...e.takes };
         return [k, out];
       }),
     ),
   };
+  if (r.types !== undefined)
+    errands.types = Object.fromEntries(entriesOf(r.types).map(([k, t]) => [k, { class: t.class }]));
   if (r.firstStopSeconds !== undefined)
     errands.firstStopTicks = secondsToTicks(r.firstStopSeconds, tickMs, 'recados.firstStopSeconds');
 
@@ -493,7 +537,7 @@ export function compile(tables: RawTables): CompiledContent {
     elements: Object.fromEntries(entriesOf(tables.elements).map(([k, e]) => [k, compileElement(k, e)])),
     mobiles,
     terrains: Object.fromEntries(entriesOf(tables.terrains).map(([k, t]) => [k, { category: t.category }])),
-    actions: { reveal },
+    actions,
     resources,
     tasks,
     builds,
