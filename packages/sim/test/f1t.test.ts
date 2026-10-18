@@ -177,6 +177,37 @@ describe('tareas de jornada (P9)', () => {
     expect(h.gives).toEqual({ agua: 400 });
   });
 
+  it('lo que van a dejar otros obreros cuenta: lo prometido cabe, y lo que no cabría se rechaza', () => {
+    const s = scene();
+    advance(s, [o(0, 'job', { mobile: 'm1', element: POZO, task: 'sacar_agua' })], 4000, content);
+    s.elements[POZO]!.store!.agua = 200;
+    const job = (mobile: string) =>
+      ({ actor: 'santi', kind: 'job', args: { mobile, element: POZO, task: 'sacar_agua' } }) as const;
+    // Lo que queda de luz hoy (hasta 4 300) no da para llenar los 200 que caben.
+    const a1 = quote(s, job('m1'), content)?.gives?.agua ?? 0;
+    expect(a1).toBeGreaterThan(0);
+    expect(a1).toBeLessThan(200);
+    advance(s, [o(4000, 'job', { mobile: 'm1', element: POZO, task: 'sacar_agua' })], 4001, content);
+    // La técnica, después: solo lo que falta para llenar, no lo que daría su jornada.
+    const a2 = quote(s, job('m2'), content)?.gives?.agua ?? 0;
+    expect(a2).toBe(200 - a1);
+    // Con el pozo comprometido entero, la orden se rechaza en vez de prometer agua que se perdería.
+    const full = structuredClone(s);
+    full.elements[POZO]!.store!.agua = 400 - a1;
+    expect(v(full, 'job', job('m2').args)).toBe('full:agua');
+    const events = advance(
+      s,
+      [o(4001, 'job', { mobile: 'm2', element: POZO, task: 'sacar_agua' })],
+      4400,
+      content,
+    );
+    const stored = events.flatMap((e) =>
+      e.kind === 'store' && e.element === POZO && e.reason === 'task:sacar_agua' ? [e.delta] : [],
+    );
+    // La técnica termina antes (trabaja menos): cada una guarda entero lo que se le prometió.
+    expect(stored).toEqual([a2, a1]);
+  });
+
   it('si lo que queda de luz hoy no da nada, la jornada es la de mañana', () => {
     const s = scene();
     advance(s, [o(0, 'job', { mobile: 'm1', element: POZO, task: 'sacar_agua' })], 4298, content);

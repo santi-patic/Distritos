@@ -55,7 +55,38 @@ export interface TaskPlan {
   gives?: Record<ResourceId, Int>;
 }
 
-/** Cuánto cabe de un recurso donde va lo que produce la tarea. */
+/**
+ * Lo que dejarán de un recurso, donde iría lo de esta tarea, las tareas que otros obreros ya
+ * tienen en curso: en el almacén del mismo elemento (`into: 'self'`) o en las existencias del
+ * mismo actor. Las de jornada dejan lo fijado al darlas; las demás, lo de la tabla.
+ */
+function pendingInto(
+  state: SimState,
+  content: CompiledContent,
+  actor: ActorId,
+  t: TaskKind,
+  e: Element,
+  r: ResourceId,
+): Int {
+  const self = t.into === 'self';
+  let n = 0;
+  for (const id of sortedKeys(state.mobiles)) {
+    const o = state.mobiles[id];
+    if (o === undefined) continue;
+    const job = o.job;
+    if (job?.kind !== 'task') continue;
+    const other = content.tasks?.[job.task];
+    if (other === undefined || (other.into === 'self') !== self) continue;
+    if (self ? job.element !== e.id : o.owner !== actor) continue;
+    n += job.gives?.[r] ?? other.gives?.[r] ?? 0;
+  }
+  return n;
+}
+
+/**
+ * Cuánto cabe de un recurso donde va lo que produce la tarea, descontado lo que van a dejar
+ * allí las tareas en curso de otros obreros: lo prometido al dar la orden es lo que se guarda.
+ */
 function spaceFor(
   state: SimState,
   content: CompiledContent,
@@ -64,7 +95,8 @@ function spaceFor(
   e: Element,
   r: ResourceId,
 ): Int {
-  return t.into === 'self' ? capacityOf(content, e, r) - levelOf(e, r) : room(state, content, actor, r);
+  const free = t.into === 'self' ? capacityOf(content, e, r) - levelOf(e, r) : room(state, content, actor, r);
+  return free - pendingInto(state, content, actor, t, e, r);
 }
 
 /**
@@ -158,9 +190,7 @@ export function validateJob(
   }
   if (t.gives !== undefined) {
     for (const r of sortedKeys(t.gives)) {
-      const free =
-        t.into === 'self' ? capacityOf(content, e, r) - levelOf(e, r) : room(state, content, actor, r);
-      if (free <= 0) return `full:${r}`;
+      if (spaceFor(state, content, actor, t, e, r) <= 0) return `full:${r}`;
     }
   }
   if (t.clean === true && (e.wear ?? 0) === 0) return 'nothing_to_do';

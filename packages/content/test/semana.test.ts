@@ -10,7 +10,8 @@
  * P14), el camino de la casa a la huerta, recoger la huerta, una ruta de recados que pague (un
  * obrero como mucho; con los de la casa, P15, sin dejar la casa sin comida ni la batería sin
  * reserva), limpiar un panel y sacar agua; con el material juntado y sin Águilas, primero
- * ganarlas. Contrata cuando la bomba ya riega la huerta.
+ * ganarlas. La huerta llena (deja de madurar) se recoge, y el pozo vacío sin bomba se llena,
+ * antes de juntar material y de abrir. Contrata cuando la bomba ya riega la huerta.
  *
  * No es un jugador óptimo: es una cota de lo que da la casa con estos números, para contrastar el
  * guion antes de la prueba con personas. Con SEMANA=<fichero> escribe el informe día a día.
@@ -22,6 +23,7 @@ import {
   RULES_VERSION,
   advance,
   available,
+  capacityOf,
   type CompiledContent,
   createScene,
   hashState,
@@ -268,8 +270,10 @@ function options(p: Player, m: Mobile): Candidate[] {
           },
         ]
       : [];
+  // Lo que ya hace otro obrero no se repite (recoger o sacar agua dos a la vez es perder un día).
+  const doing = (task: string): boolean => others.some((w) => w.job?.kind === 'task' && w.job.task === task);
   const harvest: Candidate[] =
-    huerta !== undefined && levelOf(huerta, 'comida') >= 2
+    huerta !== undefined && levelOf(huerta, 'comida') >= 2 && !doing('recoger')
       ? [
           {
             kind: 'job',
@@ -311,17 +315,38 @@ function options(p: Player, m: Mobile): Candidate[] {
       note: `${who}: limpiar un panel`,
     });
   const pozo = mine(s, 'pozo')[0];
-  if (pozo !== undefined && bomba === undefined && levelOf(pozo, 'agua') < 100)
-    care.push({
-      kind: 'job',
-      args: { mobile: m.id, element: pozo.id, task: 'sacar_agua' },
-      note: `${who}: sacar agua`,
-    });
+  const water: Candidate[] =
+    pozo !== undefined && bomba === undefined && levelOf(pozo, 'agua') < 100 && !doing('sacar_agua')
+      ? [
+          {
+            kind: 'job',
+            args: { mobile: m.id, element: pozo.id, task: 'sacar_agua' },
+            note: `${who}: sacar agua`,
+          },
+        ]
+      : [];
+  // Lo urgente de la comida va antes de juntar y de abrir: la huerta llena deja de madurar y,
+  // sin agua (pozo vacío y sin bomba), también.
+  const urgent: Candidate[] = [
+    ...(huerta !== undefined && levelOf(huerta, 'comida') >= capacityOf(c, huerta, 'comida') ? harvest : []),
+    ...(pozo !== undefined && levelOf(pozo, 'agua') === 0 ? water : []),
+  ];
   // Con el material de lo siguiente ya juntado y sin Águilas, primero ganarlas.
   const needEagles = next !== undefined && !short('madera') && !short('piedra') && short('eagles');
   return needEagles
-    ? [...build, ...wire, ...errands, ...harvest, ...explore, ...camino, ...care]
-    : [...build, ...wire, ...gather, ...explore, ...camino, ...harvest, ...errands, ...care];
+    ? [...build, ...wire, ...urgent, ...errands, ...harvest, ...explore, ...camino, ...care, ...water]
+    : [
+        ...build,
+        ...wire,
+        ...urgent,
+        ...gather,
+        ...explore,
+        ...camino,
+        ...harvest,
+        ...errands,
+        ...care,
+        ...water,
+      ];
 }
 
 interface DayRow {
