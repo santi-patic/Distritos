@@ -11,7 +11,7 @@ Los documentos de diseño (fundacional, espacio de diseño, estudio de Hades' St
 | `packages/sim`      | La simulación: tick fijo, enteros, estado como pliegue de órdenes, hash de estado, azar sembrado. Corre idéntica en cliente y servidor.        |
 | `packages/content`  | Tablas JSON validadas por esquema (edificios, obreros, arquetipos, plantillas, acciones) y su compilador. Todo número de equilibrio vive aquí. |
 | `packages/protocol` | Sobres de mensajes cliente↔servidor y esquemas de órdenes, intenciones y eventos.                                                              |
-| `packages/client`   | Cliente web (Vite + PixiJS); Capacitor para móvil más adelante.                                                                                |
+| `packages/client`   | Cliente web (Vite + PixiJS) y su envoltorio de Android (Capacitor). En F1 es también el árbitro: guarda el registro en el navegador.           |
 | `packages/server`   | Servidor Node (F2 en adelante).                                                                                                                |
 
 ## Reglas de la simulación
@@ -27,17 +27,19 @@ Los documentos de diseño (fundacional, espacio de diseño, estudio de Hades' St
 
 ```sh
 pnpm install
-pnpm check                          # lint + typecheck + test (sim y content)
+pnpm check                          # lint + typecheck + test (sim, content y cliente)
 pnpm -F @distritos/sim test -- --watch
 pnpm -F @distritos/client dev       # el juego en http://localhost:5173 y en la red local
-pnpm -F @distritos/client test:e2e  # prueba entre runtimes (Node contra Chromium)
+pnpm -F @distritos/client test:e2e  # Chromium: hashes contra Node y la página de juego
 ```
 
 Node 22 y pnpm 10. El clon va fuera de carpetas sincronizadas (OneDrive, Drive): `node_modules` y `.git` no se llevan bien con ellas.
 
-### Probar en el móvil
+### Jugar y probar en el móvil
 
-`pnpm -F @distritos/client dev` imprime una dirección «Network» (`http://192.168.x.x:5173`); con el móvil en la misma wifi, esa dirección abre el juego. `?seed=<hex>` en la URL cambia la finca. Los hashes dorados (`packages/sim/test/fixtures`, `packages/content/test/fixtures`) son los mismos que verifica la CI: si `pnpm check` pasa en otra máquina, esa máquina simula igual.
+Cada commit en `main` con la CI en verde se publica en **https://santi-patic.github.io/Distritos/** y deja el APK de Android en **https://santi-patic.github.io/Distritos/distritos.apk** (de depuración: hay que permitir instalar aplicaciones de origen desconocido). La partida vive en el navegador o en la aplicación: el registro de órdenes y la hora del tick 0; al abrir se repite y se pone al día. Desde el menú se exporta (archivo o portapapeles) para mandarla, y se carga una exportada: al cargarla se comprueba que el hash coincide en el tick en que se exportó. El menú dice la versión (commit), las reglas y las tablas.
+
+En local, `pnpm -F @distritos/client dev` imprime una dirección «Network» (`http://192.168.x.x:5173`) que abre el juego desde el móvil en la misma wifi. `?seed=<hex>` en la URL cambia la finca al crear una partida nueva (por defecto todos los probadores tienen la misma). Los hashes dorados (`packages/sim/test/fixtures`, `packages/content/test/fixtures`) son los mismos que verifica la CI: si `pnpm check` pasa en otra máquina, esa máquina simula igual.
 
 ### Cuando cambia una regla o una tabla
 

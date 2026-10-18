@@ -6,21 +6,31 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#1b1d20" />
-    <title>Distritos — F0</title>
-    <link rel="stylesheet" href="/src/style.css" />
+    <meta name="theme-color" content="#0f1820" />
+    <meta name="color-scheme" content="dark" />
+    <title>Distritos</title>
+    <link rel="icon" href="data:," />
   </head>
   <body>
-    <div id="hud" class="hud">
-      <div class="hud-top">
-        <span id="hud-worker"></span>
-        <span id="hud-stocks"></span>
+    <div id="map"></div>
+    <header class="bar" id="bar">
+      <div class="stocks" id="stocks"></div>
+      <div class="bar-buttons">
+        <button type="button" class="icon-btn" id="btn-light"></button>
+        <button type="button" class="icon-btn slate-btn" id="btn-board"></button>
+        <button type="button" class="icon-btn" id="btn-menu"></button>
       </div>
-      <div class="hud-bottom">
-        <span id="hud-message"></span>
-        <span id="hud-tick" class="mono"></span>
-      </div>
-    </div>
+    </header>
+    <section class="sheet" id="sheet" hidden></section>
+    <nav class="dock" id="dock">
+      <button type="button" class="icon-btn" id="btn-home"></button>
+      <div class="workers" id="workers"></div>
+      <span class="hash" id="hash"></span>
+    </nav>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog class="slate" id="board"></dialog>
+    <dialog class="menu" id="menu"></dialog>
+    <input type="file" id="import-file" accept=".json,application/json" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

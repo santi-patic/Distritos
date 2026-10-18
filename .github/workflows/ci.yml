@@ -5,8 +5,8 @@ on:
     branches: [main]
   pull_request:
 
-# La prueba de fuego de F0 en forma automática: la misma batería, con los mismos hashes
-# dorados, tiene que pasar en dos sistemas distintos y en dos runtimes (Node y Chromium).
+# La batería de determinismo en dos sistemas y en dos runtimes (Node y Chromium); con todo en
+# verde, en main se construye el APK de Android y se publica el juego en GitHub Pages.
 jobs:
   check:
     name: ${{ matrix.os }}
@@ -45,3 +45,78 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F @distritos/client exec playwright install --with-deps chromium
       - run: pnpm -F @distritos/client test:e2e
+
+  apk:
+    name: android apk
+    needs: [check, cross-runtime]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F @distritos/client build
+      - name: Proyecto Android (generado, no versionado)
+        working-directory: packages/client
+        run: |
+          pnpm exec cap add android
+          pnpm exec cap sync android
+      - name: APK de depuración
+        working-directory: packages/client/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distritos-apk
+          path: packages/client/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  pages:
+    name: github pages
+    needs: [check, cross-runtime, apk]
+    # La web se publica aunque falle el APK; si el APK está, va con ella.
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.check.result == 'success' && needs.cross-runtime.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F @distritos/client build
+      - uses: actions/download-artifact@v4
+        if: needs.apk.result == 'success'
+        with:
+          name: distritos-apk
+          path: apk
+      - name: El APK junto al juego
+        if: needs.apk.result == 'success'
+        run: cp apk/app-debug.apk packages/client/dist/distritos.apk
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/client/dist
+      - id: deploy
+        uses: actions/deploy-pages@v4

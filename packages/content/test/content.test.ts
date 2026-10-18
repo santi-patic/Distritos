@@ -134,7 +134,7 @@ describe('tablas del repositorio', () => {
     expect(later.map.sectors['0,1']?.status).toBe('revealed');
   });
 
-  it('la plantilla de F0 sigue creando escena (el cliente la usa hasta la tanda 3)', () => {
+  it('la plantilla de F0 sigue creando escena', () => {
     const s = createScene({ ...casa, template: 'f0_solo' }, content());
     expect(Object.keys(s.map.sectors)).toHaveLength(37);
     expect(s.district.board).toBeUndefined();

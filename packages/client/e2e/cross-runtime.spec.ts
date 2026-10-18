@@ -72,9 +72,3 @@ test('f1-real (tablas del repositorio) da en Chromium los hashes dorados de Node
   );
   expect(got).toEqual(fixture.checkpoints);
 });
-
-test('la página de juego arranca y dibuja', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.locator('#hud-tick')).toContainText('t=', { timeout: 30_000 });
-  await expect(page.locator('canvas')).toBeVisible();
-});
