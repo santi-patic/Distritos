@@ -6,7 +6,8 @@ Uso:
 
 ORIGINALES es una carpeta fuera del repositorio con los PNG tal como salen del generador
 (nombres de «Grafismos de F1»: el_casa.png, ter_prado_1.png...). SALIDA es
-packages/client/public/arte: ahí van las versiones reducidas, que son las que se publican.
+packages/client/src/arte: ahí van las versiones reducidas, que son las que se publican (el
+cliente las descubre al construirse).
 
 - Cosas (el_, rec_, sit_, ob_): fondo transparente o magenta plano (#FF00FF), que se recorta;
   se limpia la neblina del recorte, se ajusta al contenido, se centra en un cuadrado y se reduce
