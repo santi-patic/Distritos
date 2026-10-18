@@ -4,9 +4,14 @@
  * color por función, el estado en un anillo, el tamaño es el nivel y ningún texto en el mapa.
  * Lo propio va relleno en blanco de cal; lo del común, hueco. Aquí sí hay coma flotante: lo que
  * se dibuja no decide nada.
+ *
+ * Con arte (regla 6 enmendada, P17), el terreno lleva su textura y la cosa con dibujo lo lleva en
+ * lugar del relleno; el hueco de lo del común, los anillos, los nexos, las rutas y los recados
+ * siguen en vector, encima.
  */
 
-import { Application, Graphics } from 'pixi.js';
+import { Application, Container, FillPattern, Graphics, Matrix, Sprite } from 'pixi.js';
+import { NO_ART, type Art } from './art.js';
 import {
   hex as H,
   positionOf,
@@ -77,6 +82,31 @@ const LINK_COLOR: Record<string, number> = {
   canal: PALETTE.agua,
   camino: PALETTE.piedra,
 };
+
+/** Cuánto mundo cubre una repetición de la textura del terreno, en milímetros. */
+const TERRAIN_TILE_MM = 160_000;
+/** Lado del dibujo de una cosa, en radios del círculo que sustituye. */
+const ART_SIDE = 2.4;
+/** Tinte de los dibujos con la noche cerrada y con la suciedad al máximo. */
+const NIGHT_TINT = [150, 165, 190] as const;
+const DIRT_TINT = [150, 128, 92] as const;
+
+/** Mezcla del blanco hacia un tinte, multiplicando dos mezclas. */
+function tint(night: number, dirt: number): number {
+  const ch = (i: 0 | 1 | 2): number => {
+    const n = 255 - (255 - NIGHT_TINT[i]) * night;
+    const d = 255 - (255 - DIRT_TINT[i]) * dirt;
+    return Math.round((n * d) / 255);
+  };
+  return (ch(0) << 16) | (ch(1) << 8) | ch(2);
+}
+
+/** Variante de textura de un sector: fija por posición, sin azar. */
+function variantOf(q: number, r: number, n: number): number {
+  if (n <= 1) return 0;
+  const h = Math.imul(q, 73856093) ^ Math.imul(r, 19349663);
+  return (h >>> 0) % n;
+}
 
 /** El almacén cuyo nivel enseña el anillo de cada tipo (la casa enseña la batería). */
 const RING_OF: Record<string, string> = {
@@ -322,9 +352,16 @@ export class Renderer {
   private readonly terrain = new Graphics();
   private readonly links = new Graphics();
   private readonly night = new Graphics();
+  /** Debajo de las cosas: sombras de los dibujos y formas de lo que no tiene dibujo. */
+  private readonly back = new Graphics();
+  private readonly sprites = new Container();
+  /** Encima de las cosas: huecos del común, anillos de estado y recados. */
   private readonly elements = new Graphics();
   private readonly overlay = new Graphics();
   private readonly mobiles = new Graphics();
+  private art: Art = NO_ART;
+  private patterns: Record<string, FillPattern[]> = {};
+  private readonly spriteOf = new Map<string, Sprite>();
   private drawnElements: Drawn[] = [];
   private drawnMobiles: Drawn[] = [];
   private revealedAt: Record<string, number> = {};
@@ -348,7 +385,27 @@ export class Renderer {
     });
     this.app.canvas.setAttribute('aria-label', 'mapa');
     parent.prepend(this.app.canvas);
-    this.app.stage.addChild(this.terrain, this.links, this.night, this.elements, this.overlay, this.mobiles);
+    this.app.stage.addChild(
+      this.terrain,
+      this.links,
+      this.night,
+      this.back,
+      this.sprites,
+      this.elements,
+      this.overlay,
+      this.mobiles,
+    );
+  }
+
+  /** Pone el arte cargado; lo que no tenga dibujo sigue en vector. */
+  setArt(art: Art): void {
+    this.art = art;
+    this.patterns = {};
+    for (const [kind, list] of Object.entries(art.terrains)) {
+      this.patterns[kind] = list.map((texture) => new FillPattern({ texture, repetition: 'repeat' }));
+    }
+    for (const s of this.spriteOf.values()) s.destroy();
+    this.spriteOf.clear();
   }
 
   get width(): number {
@@ -507,6 +564,14 @@ export class Renderer {
     const revealed = (q: number, r: number): boolean => sectors[H.keyOf(q, r)]?.status === 'revealed';
     const pending: Record<string, true> = {};
     for (const m of Object.values(v.mobiles)) if (m.job?.kind === 'reveal') pending[m.job.hex] = true;
+    // Las texturas van ancladas al mundo: se desplazan y escalan con la cámara, y siguen de un
+    // sector al vecino.
+    for (const list of Object.values(this.patterns)) {
+      for (const p of list) {
+        const k = (TERRAIN_TILE_MM * this.camera.scale) / p.texture.width;
+        p.setTransform(new Matrix(k, 0, 0, k, this.camera.ox, this.camera.oy));
+      }
+    }
     for (const [k, s] of Object.entries(sectors)) {
       const c = worldToScreen(this.camera, H.center({ q: s.q, r: s.r }, lat));
       const pts = hexPoints(c.x, c.y, hexR * 0.965);
@@ -538,7 +603,10 @@ export class Renderer {
       const since = this.revealedAt[k];
       const fade = since === undefined || input.reduceMotion ? 1 : Math.min(1, (animMs - since) / 700);
       if (fade < 1) g.poly(pts).fill(PALETTE.fog);
-      g.poly(pts).fill({ color, alpha: fade });
+      const patterns = this.patterns[sector.terrain ?? ''];
+      const pattern = patterns?.[variantOf(sector.q, sector.r, patterns.length)];
+      if (pattern !== undefined) g.poly(pts).fill({ fill: pattern, alpha: fade });
+      else g.poly(pts).fill({ color, alpha: fade });
       if (sector.plot === null) {
         // La tierra común: un borde de tiza.
         g.poly(hexPoints(c.x, c.y, hexR * 0.9)).stroke({ width: 1.5, color: PALETTE.cal, alpha: 0.28 });
@@ -547,7 +615,7 @@ export class Renderer {
   }
 
   private elementRadius(v: PublicState, level: number): number {
-    const base = Math.max(7, Math.min(20, this.hexRadius(v) * 0.15));
+    const base = Math.max(7, Math.min(30, this.hexRadius(v) * 0.15));
     return base * (1 + 0.15 * (level - 1));
   }
 
@@ -628,9 +696,12 @@ export class Renderer {
     const { view: v, content } = input;
     const g = this.elements;
     g.clear();
+    this.back.clear();
     const drawn: Drawn[] = [];
     const battery = this.batteryFraction(v, content);
     const { at } = errandsBy(v);
+    const night = 1 - Math.max(0, Math.min(1000, input.light)) / 1000;
+    const seen = new Set<string>();
     const ids = Object.keys(v.elements).sort();
     for (const id of ids) {
       const el = v.elements[id];
@@ -638,7 +709,9 @@ export class Renderer {
       const p = worldToScreen(this.camera, el.pos);
       const r = this.elementRadius(v, el.level);
       drawn.push({ id, x: p.x, y: p.y, r });
-      this.drawElement(g, el, p, r, content, battery);
+      if (this.drawArt(el, p, r, content, night)) seen.add(id);
+      else this.drawShape(this.back, el, p, r, content);
+      this.drawState(g, el, p, r, content, battery);
       const here = at[id];
       if (here !== undefined && here.length > 0) {
         // Debajo del sitio (los obreros paran encima): lo que espera a que alguien lo lleve.
@@ -649,6 +722,11 @@ export class Renderer {
       }
     }
     this.drawnElements = drawn;
+    for (const [id, s] of this.spriteOf) {
+      if (seen.has(id)) continue;
+      s.destroy();
+      this.spriteOf.delete(id);
+    }
   }
 
   private parcel(e: Errand, v: PublicState, content: CompiledContent): Parcel {
@@ -656,21 +734,62 @@ export class Renderer {
     return { size: Math.max(1, e.size), mine: e.holder === v.viewer, color: typeColor(type) };
   }
 
-  private drawElement(
+  /** Suciedad de lo que se ensucia, de 0 a 1. */
+  private static dirt(el: Element, content: CompiledContent): number {
+    return content.elements[el.kind]?.soil !== undefined ? Math.min(1, (el.wear ?? 0) / 600) : 0;
+  }
+
+  /**
+   * La cosa con su dibujo, si lo tiene: sombra suave debajo y el dibujo en lugar del relleno.
+   * Apagada, el dibujo se desvanece como el círculo; sucia, se tiñe de barro; de noche, de azul.
+   */
+  private drawArt(
+    el: Element,
+    p: { x: number; y: number },
+    r: number,
+    content: CompiledContent,
+    night: number,
+  ): boolean {
+    const texture = this.art.things[el.kind];
+    if (texture === undefined) return false;
+    const kind = content.elements[el.kind];
+    const off = kind?.switchable === true && el.on !== true;
+    const side = r * ART_SIDE;
+    this.back
+      .ellipse(p.x + r * 0.14, p.y + r * 0.2, side * 0.5, side * 0.46)
+      .fill({ color: 0x000000, alpha: 0.12 });
+    this.back
+      .ellipse(p.x + r * 0.1, p.y + r * 0.14, side * 0.44, side * 0.4)
+      .fill({ color: 0x000000, alpha: 0.16 });
+    let s = this.spriteOf.get(el.id);
+    if (s === undefined) {
+      s = new Sprite(texture);
+      s.anchor.set(0.5);
+      this.sprites.addChild(s);
+      this.spriteOf.set(el.id, s);
+    }
+    s.position.set(p.x, p.y);
+    s.width = side;
+    s.height = side;
+    s.alpha = off ? 0.45 : 1;
+    s.tint = tint(night, Renderer.dirt(el, content));
+    return true;
+  }
+
+  /** La forma vectorial de la cosa (regla 1): rombo, círculo con punto, círculo lleno o hueco. */
+  private drawShape(
     g: Graphics,
     el: Element,
     p: { x: number; y: number },
     r: number,
     content: CompiledContent,
-    battery: number,
   ): void {
     const kind = content.elements[el.kind];
     const color = KIND_COLOR[el.kind] ?? PALETTE.piedra;
     const common = el.owner === undefined;
     const category = kind?.category ?? 'fixed';
     const off = kind?.switchable === true && el.on !== true;
-    const dirt = kind?.soil !== undefined ? Math.min(1, (el.wear ?? 0) / 600) : 0;
-    const alpha = off ? 0.4 : 1 - dirt;
+    const alpha = off ? 0.4 : 1 - Renderer.dirt(el, content);
     if (category === 'resource') {
       g.poly([p.x, p.y - r * 1.15, p.x + r, p.y, p.x, p.y + r * 1.15, p.x - r, p.y]).fill({ color, alpha });
     } else if (category === 'site') {
@@ -681,6 +800,23 @@ export class Renderer {
     } else {
       g.circle(p.x, p.y, r).fill({ color, alpha });
       if (off) g.circle(p.x, p.y, r).stroke({ width: 1.5, color });
+    }
+  }
+
+  /** Encima de la cosa: el hueco de lo del común si va dibujada, y el anillo de su almacén. */
+  private drawState(
+    g: Graphics,
+    el: Element,
+    p: { x: number; y: number },
+    r: number,
+    content: CompiledContent,
+    battery: number,
+  ): void {
+    const kind = content.elements[el.kind];
+    const color = KIND_COLOR[el.kind] ?? PALETTE.piedra;
+    const common = el.owner === undefined;
+    if (common && this.art.things[el.kind] !== undefined && (kind?.category ?? 'fixed') === 'fixed') {
+      g.circle(p.x, p.y, r * (ART_SIDE / 2 + 0.1)).stroke({ width: 2, color, alpha: 0.85 });
     }
     const width = Math.max(2, r * 0.22);
     if (el.kind === 'casa' && !common) {

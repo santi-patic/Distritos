@@ -11,6 +11,7 @@ Juego de estrategia persistente para móvil en el universo SURGO (nombre en clav
 - **Se reserva el hueco, no se escribe la regla.** Los campos de F2–F5 existen en los tipos y están vacíos; no se implementa una mecánica antes de su fase.
 - **Lo de F1 es opcional en las tablas.** Sin almacenes, flujos, tareas ni pizarra, las reglas son las de F0: los dorados de F0 (`f0-basic`, `f0-real`) lo vigilan. El sim tiene cuatro contenidos de prueba: `test/content.json` (F0), `test/content-f1.json` (F1, con un día de 10 minutos para poder comparar tick a tick), `test/content-f1r.json` (F1 con sitios, recados y rutas, con el mismo día corto) y `test/content-f1t.json` (la tanda 6: aperturas con curva, tareas de jornada, nombres y recados por tipo, con la casa como sitio y sin encargos).
 - **Rápido = lento.** `advance` acumula los flujos de un tramo de una vez; tiene que dar exactamente lo mismo que `step` tick a tick. Cualquier regla nueva que cambie una tasa tiene que declarar su suceso en `nextEventTick`.
+- **El arte no lleva estado.** Los dibujos (`packages/client/src/arte`, un archivo por tipo con los nombres de «Grafismos de F1») salen de `tools/arte/preparar.py` a partir de los originales del autor, que no entran en el repositorio. Un dibujo por tipo, nunca por estado: anillos, nexos, rutas y recados siguen en vector. Lo que no tenga dibujo se pinta en vector, y `?arte=0` lo pinta todo en vector.
 
 ## Comandos
 
