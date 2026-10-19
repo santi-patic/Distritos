@@ -468,15 +468,16 @@ function playWeek(plan: Plan): { p: Player; rows: DayRow[]; milestones: Record<s
   return { p, rows, milestones };
 }
 
-const GUION: Record<string, number> = {
+/** El guion de la semana corregido a lo medido (P10, opción a, decidida el 19 oct). */
+const GUION: Record<string, number | string> = {
   'primer sector': 1,
   manantial: 2,
-  camino: 2,
+  camino: '2.ª semana',
   cobertizo: 3,
-  bomba: 4,
-  taller: 5,
-  'tercer obrero': 6,
-  'siete sectores': 7,
+  bomba: 5,
+  taller: 8,
+  'tercer obrero': '2.ª semana',
+  'siete sectores': 2,
 };
 
 function report(title: string, r: ReturnType<typeof playWeek>): string {

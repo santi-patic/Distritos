@@ -49,7 +49,7 @@
   "huerta": {
     "category": "fixed",
     "stores": {
-      "comida": 6
+      "comida": 9
     },
     "consume": {
       "resource": "agua",
@@ -58,7 +58,7 @@
     },
     "produce": {
       "resource": "comida",
-      "amount": 2,
+      "amount": 3,
       "per": "dia",
       "to": "self"
     }

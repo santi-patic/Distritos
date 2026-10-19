@@ -62,7 +62,8 @@ describe('tablas del repositorio', () => {
     expect(c.elements.casa?.consume).toEqual({ resource: 'energia', perDay: 15 * 86_400 });
     expect(c.elements.bomba?.consume).toEqual({ resource: 'energia', perDay: 250 * 86_400 });
     expect(c.elements.bomba?.produce).toEqual({ resource: 'agua', perDay: 400 * 24, to: 'self' });
-    expect(c.elements.huerta?.produce).toEqual({ resource: 'comida', perDay: 2, to: 'self' });
+    expect(c.elements.huerta?.produce).toEqual({ resource: 'comida', perDay: 3, to: 'self' });
+    expect(c.elements.huerta?.stores).toEqual({ comida: 9 });
     expect(c.tasks?.sacar_agua).toMatchObject({
       ticks: 36_000,
       firstTicks: 1_200,
